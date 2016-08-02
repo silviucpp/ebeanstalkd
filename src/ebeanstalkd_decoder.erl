@@ -1,7 +1,6 @@
 -module(ebeanstalkd_decoder).
 
--define(NEW_LINE, <<"\r\n">>).
--define(WHITE_SPACE, <<" ">>).
+-include("ebeanstalkd.hrl").
 
 -export([decode/1]).
 
@@ -62,7 +61,7 @@ decode(_) ->
     more.
 
 parse_job(Bin, Name) ->
-    case parse_int(Bin, Name, ?WHITE_SPACE) of
+    case parse_int(Bin, Name, ?BIN_WHITE_SPACE) of
         {ok, {Name, ID}, Bin2} ->
             case parse_body(Bin2) of
                 {ok, Body, Rest} ->
@@ -75,11 +74,11 @@ parse_job(Bin, Name) ->
     end.
 
 parse_body(Bin) ->
-    case find_next_token_length(Bin, ?NEW_LINE) of
+    case find_next_token_length(Bin, ?BIN_END_LINE) of
         {ok, Length, BodyRest} ->
             BodyLength = binary_to_integer(binary:part(Bin, {0, Length})),
             case BodyRest of
-                <<Body:BodyLength/binary, "\r\n", Rest/binary>> ->
+                <<Body:BodyLength/binary, ?STR_END_LINE, Rest/binary>> ->
                     {ok, Body, Rest};
                 _ ->
                     more
@@ -89,7 +88,7 @@ parse_body(Bin) ->
     end.
 
 parse_string(Bin, Name) ->
-    case find_next_token_length(Bin, ?NEW_LINE) of
+    case find_next_token_length(Bin, ?BIN_END_LINE) of
         {ok, Length, Rest} ->
             {ok, {Name, binary:part(Bin, {0, Length})}, Rest};
         Other ->
@@ -97,7 +96,7 @@ parse_string(Bin, Name) ->
     end.
 
 parse_int(Bin, Name) ->
-    parse_int(Bin, Name, ?NEW_LINE).
+    parse_int(Bin, Name, ?BIN_END_LINE).
 
 parse_int(Bin, Name, Delimiter) ->
     case find_next_token_length(Bin, Delimiter) of

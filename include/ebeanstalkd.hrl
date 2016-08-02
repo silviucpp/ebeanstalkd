@@ -57,3 +57,10 @@
 -define(DEFAULT_PRIORITY, 0).
 -define(DEFAULT_DELAY, 0).
 -define(DEFAULT_TTR, 60).
+
+%protocol end line and whitespace
+
+-define(BIN_END_LINE, <<"\r\n">>).
+-define(STR_END_LINE, "\r\n").
+-define(STR_WHITE_SPACE, " ").
+-define(BIN_WHITE_SPACE, <<" ">>).
