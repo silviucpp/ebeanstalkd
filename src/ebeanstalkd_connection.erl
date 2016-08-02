@@ -148,7 +148,14 @@ set_tube_option(_Socket, {_Command, []}) ->
     ok.
 
 set_tube(Socket, Tube) ->
-    case send(Socket, Tube, false) of
+    Cmd = case Tube of
+        {watch, TubeName} ->
+            ?BK_WATCH(TubeName);
+        {use, TubeName} ->
+            ?BK_USE(TubeName)
+    end,
+
+    case send(Socket, Cmd, false) of
         {ok, {watching, _}} ->
             ok;
         {ok, {using, _}} ->
@@ -159,7 +166,7 @@ set_tube(Socket, Tube) ->
     end.
 
 ignore_tube(Socket, Tube) ->
-    case send(Socket, {ignore, Tube}, false) of
+    case send(Socket, ?BK_IGNORE(Tube), false) of
         {ok, {watching, _}} ->
             ok;
         Result ->
