@@ -45,6 +45,9 @@
 
 %defaults
 
+-define(DEFAULT_TUBE_NAME, <<"default">>).
+-define(MAX_PENDING_REQUESTS_QUEUE, 100).
+
 -define(DEFAULT_IP, {127, 0, 0, 1}).
 -define(DEFAULT_PORT, 11300).
 -define(DEFAULT_TIMEOUT, 5000).

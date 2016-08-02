@@ -2,9 +2,6 @@
 
 -include("ebeanstalkd.hrl").
 
--define(USED_DEFAULT_TUBE, <<"default">>).
--define(MAX_PENDING_REQUESTS_QUEUE, 100).
-
 -export([start_link/1, stop/1, init/2]).
 
 -record(state, {socket, host, port, timeout, recon_interval, tube, monitor, queue, queue_length, buff}).
@@ -171,18 +168,18 @@ ignore_tube(Socket, Tube) ->
     end.
 
 maybe_ignore_default_tube(Socket, {watch, TubeList}) when is_list(TubeList) ->
-    case lists:member(?USED_DEFAULT_TUBE, TubeList) of
+    case lists:member(?DEFAULT_TUBE_NAME, TubeList) of
         false ->
-            ignore_tube(Socket, ?USED_DEFAULT_TUBE);
+            ignore_tube(Socket, ?DEFAULT_TUBE_NAME);
         _ ->
             ok
     end;
 maybe_ignore_default_tube(Socket, {watch, Tube}) when is_binary(Tube) ->
     case Tube of
-        ?USED_DEFAULT_TUBE ->
+        ?DEFAULT_TUBE_NAME ->
             ok;
         _ ->
-            ignore_tube(Socket, ?USED_DEFAULT_TUBE)
+            ignore_tube(Socket, ?DEFAULT_TUBE_NAME)
     end;
 maybe_ignore_default_tube(_Socket, _Tubes) ->
     ok.
