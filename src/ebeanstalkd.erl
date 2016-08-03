@@ -7,7 +7,7 @@
 -export([start/2, stop/1]).
 
 -export([connect/0, connect/1, close/1,
-         put_in_tube/3, put_in_tube/4, put/2, put/3,
+         put_in_tube/3, put_in_tube/4, put_in_tube2/3, put_in_tube2/4, put/2, put/3,
          use/2, watch/2, ignore/2,
          reserve/1, reserve/2, delete/2, release/2, release/3, bury/2, bury/3, touch/2,
          peek/2, peek_ready/1, peek_buried/1, peek_delayed/1, kick/2, kick_job/2,
@@ -30,13 +30,22 @@ close(Pid) ->
 put_in_tube(InstanceRef, Tube, Data) ->
     put_in_tube(InstanceRef, Tube, Data, []).
 
-put_in_tube(InstanceRef, Tube, Data, Options) ->
+put_in_tube(InstanceRef, Tube, Data, Params) ->
     case use(InstanceRef, Tube) of
         {using, _} ->
-            put(InstanceRef, Data, Options);
+            put(InstanceRef, Data, Params);
         UnexpectedError ->
             UnexpectedError
     end.
+
+put_in_tube2(InstanceRef, Tube, Data) ->
+    put_in_tube2(InstanceRef, Tube, Data, []).
+
+put_in_tube2(InstanceRef, Tube, Data, Params) ->
+    Pri = ebeanstalkd_utils:lookup(pri, Params, ?DEFAULT_PRIORITY),
+    Delay = ebeanstalkd_utils:lookup(delay, Params, ?DEFAULT_DELAY),
+    TTR = ebeanstalkd_utils:lookup(ttr, Params, ?DEFAULT_TTR),
+    bk_exec(InstanceRef, ?BK_PUT_IN_TUBE(Tube, Data, Pri, Delay, TTR, size(Data))).
 
 put(InstanceRef, Data) ->
     ebeanstalkd:put(InstanceRef, Data, []).

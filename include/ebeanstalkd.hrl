@@ -21,6 +21,7 @@
 %commands
 
 -define(BK_PUT(Data, Pri, Delay, Ttr, Size), {[<<"put">>, Pri, Delay, Ttr, Size], Data}).
+-define(BK_PUT_IN_TUBE(Tube, Data, Pri, Delay, Ttr, Size), {[<<"put-in-tube">>, Tube, Pri, Delay, Ttr, Size], Data}).
 -define(BK_USE(Tube), [<<"use">>, Tube]).
 -define(BK_RESERVE(), <<"reserve">>).
 -define(BK_RESERVE(Timeout), [<<"reserve-with-timeout">>, Timeout]).

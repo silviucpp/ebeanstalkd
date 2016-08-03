@@ -98,4 +98,11 @@ Example:
 load_test:run(multispawn, 10, 100000).
 ```
 
+Notes
+-----------
+
+- The 'ebeanstalkd:put_in_tube2' works only with []my server fork currently][2]. This command `put_in_tube` is not supported by the official protocol. 
+A lot of clients are sending a `use` command and then a `put` but this is decreasing performances. Also `ebeanstalkd` offers this functionality in this way using `ebeanstalkd:put_in_tube`  
+
 [1]:http://kr.github.com/beanstalkd/
+[2]:https://github.com/silviucpp/beanstalkd
