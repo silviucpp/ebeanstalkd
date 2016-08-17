@@ -1,0 +1,6 @@
+/.idea/
+/ebin/
+*.iml
+/deps/
+/.rebar/
+/log/
