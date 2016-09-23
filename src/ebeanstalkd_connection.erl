@@ -240,7 +240,7 @@ receive_async(Packet, #state{buff = ExistingBuffer, queue = Queue, queue_length 
 
             case Rest of
                 <<>> ->
-                    State#state{queue = Queue2, queue_length = QueueLength - 1};
+                    State#state{queue = Queue2, queue_length = QueueLength - 1, buff = <<>>};
                 _ ->
                     receive_async(Rest, State#state{buff = <<>>, queue = Queue2, queue_length = QueueLength - 1})
             end
