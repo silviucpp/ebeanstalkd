@@ -84,18 +84,19 @@ All supported commands from the protocol are exported in `ebeanstalkd` module.
 Performance testing
 -----------
 
-From the `test` folder you can use the `load_test:run/3` method to run benchmarks. Make sure you define a pool called `bk_pool` in your `sys.config` or use the one from the same location.
+From the `test` folder you can use the `load_test:run/4` method to run benchmarks. Make sure you define a pool called `bk_pool` in your `sys.config` or use the one from the same location.
 
-The `load_test/run(Method, NumberOfProcs, NumberOfRequests)` can take the following values:
+The `load_test/run(Profiling, ClientsNr, ReqNr, PayloadLength)` can take the following values:
  
-- `Method` - specify the method to use for spawning the processes: `multispawn` or `plists` (you need to add also plists to the deps).
-- `NumberOfProcs` - how many processes should spawn to send requests
-- `NumberOfRequests` - how many requests should send during the test.
+- `Method` - Specify if you want to profile the erlang processes during the test.
+- `ClientsNr` - how many processes should spawn to send requests
+- `ReqNr` - how many requests should send during the test.
+- `PayloadLength` - what length will have the message payload sent to the server
 
 Example:
 
 ```erl
-load_test:run(multispawn, 10, 100000).
+load_test:run(false, 10, 100000, 32*1024).
 ```
 
 Notes

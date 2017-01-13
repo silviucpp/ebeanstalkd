@@ -18,6 +18,12 @@ wait_responses(0) ->
     ok;
 wait_responses(Count) ->
     receive
-        {'EXIT',_FromPid, _Reason} ->
+        {'EXIT',_FromPid, Reason} ->
+            case Reason of
+                normal ->
+                    ok;
+                _ ->
+                    io:format("process exit with error:~p ~n", [Reason])
+            end,
             wait_responses(Count -1)
     end.
