@@ -2,9 +2,37 @@
 
 -include("ebeanstalkd.hrl").
 
--export([start_link/1, stop/1, init/2]).
+-export([
+    start_link/1,
+    stop/1,
+    init/2
+]).
 
--record(state, {socket, host, port, timeout, recon_interval, tube, monitor, queue, queue_length, buff}).
+-record(state, {
+    socket,
+    host,
+    port,
+    timeout,
+    recon_interval,
+    tube,
+    monitor,
+    queue,
+    queue_length,
+    buff
+}).
+
+-define(CONNECT_OPTIONS,  [
+    {mode, binary},
+    {packet, raw},
+    {keepalive, true},
+    {nodelay, true},
+    {delay_send, false},
+    %{recbuf, 32000},
+    %{sndbuf, 32000},
+    {send_timeout, 10000},
+    {send_timeout_close, true},
+    {active, true}
+]).
 
 start_link(Options) ->
     proc_lib:start_link(?MODULE, init, [self(), Options]).
@@ -51,7 +79,7 @@ connection_loop(State) ->
         stop ->
             terminate(normal, State);
         UnexpectedMessage ->
-            ?WARNING_MSG(<<"received unexpected message: ~p">>, [UnexpectedMessage]),
+            ?WARNING_MSG("received unexpected message: ~p", [UnexpectedMessage]),
             connection_loop(State)
     end.
 
@@ -77,7 +105,7 @@ send_command(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength} = S
     end.
 
 reconnect(State) ->
-    ?INFO_MSG(<<"try to reconnect to ip: ~p port: ~p">>, [State#state.host, State#state.port]),
+    ?INFO_MSG("try to reconnect to ip: ~p port: ~p", [State#state.host, State#state.port]),
     Socket = connect(State#state.host, State#state.port, State#state.timeout, State#state.tube, State#state.recon_interval, State#state.monitor),
     State#state{socket = Socket}.
 
@@ -94,23 +122,22 @@ terminate(_Reason, _State) ->
     ok.
 
 connect(Host, Port, Timeout, Tube, ReconnectInterval, NotificationPid) ->
-    Opts = [binary, {packet, raw}, {keepalive, true}, {nodelay, true}],
 
-    case gen_tcp:connect(Host, Port, Opts, Timeout) of
+    case gen_tcp:connect(Host, Port, ?CONNECT_OPTIONS, Timeout) of
         {ok, Socket} ->
-            ?INFO_MSG(<<"connect completed: ~p">>, [Socket]),
+            ?INFO_MSG("connect completed: ~p", [Socket]),
 
             case update_tube(Socket, Tube) of
                 ok ->
                     notification_connection_up(NotificationPid),
                     Socket;
                 TubeError ->
-                    ?ERROR_MSG(<<"failed to set the proper tube. error: ~p . reconnect in ~p ms">>, [TubeError, ReconnectInterval]),
+                    ?ERROR_MSG("failed to set the proper tube. error: ~p . reconnect in ~p ms", [TubeError, ReconnectInterval]),
                     erlang:send_after(ReconnectInterval, self(), reconnect),
                     undefined
             end;
         Error ->
-            ?ERROR_MSG(<<"failed to connect. try again in ~p ms. error: ~p">>, [ReconnectInterval, Error]),
+            ?ERROR_MSG("failed to connect. try again in ~p ms. error: ~p", [ReconnectInterval, Error]),
             erlang:send_after(ReconnectInterval, self(), reconnect),
             undefined
     end.
@@ -161,7 +188,7 @@ set_tube(Socket, Tube) ->
         {ok, {using, _}} ->
             ok;
         Result ->
-            ?ERROR_MSG(<<"failed to set tube: ~p result: ~p">>,[Tube, Result]),
+            ?ERROR_MSG("failed to set tube: ~p result: ~p", [Tube, Result]),
             Result
     end.
 
@@ -170,7 +197,7 @@ ignore_tube(Socket, Tube) ->
         {ok, {watching, _}} ->
             ok;
         Result ->
-            ?ERROR_MSG(<<"failed to ignore tube: ~p error: ~p">>,[Tube, Result]),
+            ?ERROR_MSG("failed to ignore tube: ~p error: ~p", [Tube, Result]),
             Result
     end.
 

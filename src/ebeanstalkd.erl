@@ -6,6 +6,8 @@
 
 -export([start/2, stop/1]).
 
+-define(DEFAULT_TIMEOUT_MS, 20000).
+
 -export([connect/0, connect/1, close/1,
          put_in_tube/3, put_in_tube/4, put_in_tube2/3, put_in_tube2/4, put/2, put/3,
          use/2, watch/2, ignore/2,
@@ -130,7 +132,7 @@ list_tubes_watched(InstanceRef) ->
 %internals
 
 bk_exec(InstanceRef, Msg) ->
-    bk_exec(InstanceRef, Msg, 20000).
+    bk_exec(InstanceRef, Msg, ?DEFAULT_TIMEOUT_MS).
 
 bk_exec(InstanceRef, Msg, Timeout) ->
     Tag = make_ref(),
