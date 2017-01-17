@@ -53,7 +53,7 @@ decode(<<"FOUND ", Bin/bytes>>) ->
 decode(<<"OK ", Bin/bytes>>) ->
     case parse_body(Bin) of
         {ok, Body, Rest} ->
-            {ok, ebeanstalkd_yaml:parse(Body), Rest};
+            {ok, yaml_parser(Body), Rest};
         more ->
             more
     end;
@@ -117,4 +117,12 @@ find_next_token_length(Delimiter, DelimiterLength, Bin, Acc) ->
             find_next_token_length(Delimiter, DelimiterLength, Rest, Acc+1);
         <<>> ->
             more
+    end.
+
+yaml_parser(YamlBin) ->
+    try
+        [Yaml] = yamerl_constr:string(YamlBin, [str_node_as_binary]),
+        {ok, Yaml}
+    catch _:Error ->
+        {erorr, Error}
     end.

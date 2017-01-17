@@ -3,7 +3,7 @@
     {vsn, "1.2"},
     {modules, []},
     {registered, []},
-    {applications, [kernel, stdlib, lager, poolboy]},
+    {applications, [kernel, stdlib, lager, yamerl, poolboy]},
     {mod, {ebeanstalkd, []}},
     {env, []}
 ]}.

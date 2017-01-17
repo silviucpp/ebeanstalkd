@@ -24,6 +24,7 @@ groups() -> [
 ].
 
 init_per_suite(Config) ->
+    application:ensure_all_started(ebeanstalkd),
     Config.
 
 end_per_suite(_Config) ->
@@ -98,7 +99,7 @@ test_stats_job(_Config) ->
     ok = use_tube(Q, <<"test_stats_job">>),
     {inserted, Jb1} = ebeanstalkd:put(Q, <<"1">>),
     {ok, List} = ebeanstalkd:stats_job(Q, Jb1),
-    ok = lists:foreach(fun({K, V}) -> true = is_binary(K), true = is_binary(V) end, List),
+    ok = lists:foreach(fun({K, _V}) -> true = is_binary(K) end, List),
     14 = length(List),
     true.
 
@@ -106,14 +107,14 @@ test_stats(_Config) ->
     {ok, Q} = ebeanstalkd:connect(),
     ok = use_tube(Q, <<"test_stats">>),
     {ok, List} = ebeanstalkd:stats(Q),
-    ok = lists:foreach(fun({K, V}) -> true = is_binary(K), true = is_binary(V) end, List),
+    ok = lists:foreach(fun({K, _V}) -> true = is_binary(K) end, List),
     48 = length(List),
     true.
 
 test_stats_tube(_Config) ->
     {ok, Q} = ebeanstalkd:connect(),
     {ok, List} = ebeanstalkd:stats_tube(Q, <<"default">>),
-    ok = lists:foreach(fun({K, V}) -> true = is_binary(K), true = is_binary(V) end, List),
+    ok = lists:foreach(fun({K, _V}) -> true = is_binary(K) end, List),
     14 = length(List),
     true.
 
