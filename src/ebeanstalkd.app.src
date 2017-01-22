@@ -1,9 +1,8 @@
 {application, ebeanstalkd, [
     {description, "Erlang Beanstalkd Client"},
     {vsn, "1.2"},
-    {modules, []},
     {registered, []},
     {applications, [kernel, stdlib, lager, yamerl, poolboy]},
-    {mod, {ebeanstalkd, []}},
+    {mod, {ebeanstalkd_app, []}},
     {env, []}
 ]}.
