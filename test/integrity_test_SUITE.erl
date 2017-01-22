@@ -1,6 +1,9 @@
 -module(integrity_test_SUITE).
 -author("silviu.caragea").
 
+%% note: you need to run the test on a clean beanstalkd server instance to make sure
+%% jobs are not already exist (part of the tests might fail if jobs are already in tubes)
+
 -include_lib("common_test/include/ct.hrl").
 
 -compile(export_all).
@@ -63,6 +66,7 @@ test_bury_peek(_Config) ->
     {deleted} = ebeanstalkd:delete(Q, Jb2),
 
     {inserted, Jb1} = ebeanstalkd:put(Q, <<"1">>),
+    {found, Jb1, <<"1">>} = ebeanstalkd:peek(Q, Jb1),
     {found, Jb1, <<"1">>} = ebeanstalkd:peek_ready(Q),
     {reserved, Jb1, <<"1">>} = ebeanstalkd:reserve(Q),
     {buried} = ebeanstalkd:bury(Q, Jb1),

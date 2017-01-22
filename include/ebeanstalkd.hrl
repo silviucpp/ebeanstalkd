@@ -18,7 +18,7 @@
 -define(CRITICAL_MSG(Format, Args),
     lager:critical(Format, Args)).
 
-%commands
+% commands
 
 -define(BK_PUT(Data, Pri, Delay, Ttr, Size), {[<<"put">>, Pri, Delay, Ttr, Size], Data}).
 -define(BK_PUT_IN_TUBE(Tube, Data, Pri, Delay, Ttr, Size), {[<<"put-in-tube">>, Tube, Pri, Delay, Ttr, Size], Data}).
@@ -44,7 +44,7 @@
 -define(BK_LIST_TUBE_USED(), <<"list-tube-used">>).
 -define(BK_LIST_TUBES_WATCHED(), <<"list-tubes-watched">>).
 
-%defaults
+% defaults
 
 -define(DEFAULT_TUBE_NAME, <<"default">>).
 -define(MAX_PENDING_REQUESTS_QUEUE, 1000).
@@ -59,9 +59,36 @@
 -define(DEFAULT_DELAY, 0).
 -define(DEFAULT_TTR, 60).
 
-%protocol end line and whitespace
+% protocol end line and whitespace
 
 -define(BIN_END_LINE, <<"\r\n">>).
 -define(STR_END_LINE, "\r\n").
 -define(STR_WHITE_SPACE, " ").
 -define(BIN_WHITE_SPACE, <<" ">>).
+
+% types
+
+-type reason() :: term().
+-type host() :: inet:ip_address() | inet:hostname().
+-type tube() :: binary().
+-type watch_tube() :: {watch, [tube()]}.
+-type use_tube() :: {use, tube()}.
+-type con_ref() :: atom() | pid().
+-type job_id() :: integer().
+
+-type connect_option() ::
+    {host, host()} |
+    {port, non_neg_integer()} |
+    {timeout, timeout()} |
+    {tube, watch_tube() | use_tube() | undefined} |
+    {reconnect_interval, non_neg_integer()} |
+    {monitor, pid() | undefined}.
+
+-type put_option() ::
+    {pri, non_neg_integer()} |
+    {delay, non_neg_integer()} |
+    {ttr, non_neg_integer()}.
+
+-type release_option() ::
+    {pri, non_neg_integer()} |
+    {delay, non_neg_integer()}.
