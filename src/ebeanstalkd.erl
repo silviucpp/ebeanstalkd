@@ -67,11 +67,21 @@ put_in_tube(InstanceRef, Tube, Data) ->
     {inserted, job_id()} | {error, reason()}.
 
 put_in_tube(InstanceRef, Tube, Data, Params) ->
-    case use(InstanceRef, Tube) of
-        {using, _} ->
-            put(InstanceRef, Data, Params);
-        UnexpectedError ->
-            UnexpectedError
+    case is_atom(InstanceRef) of
+        true ->
+            Pid = poolboy:checkout(InstanceRef, true),
+            try
+                put_in_tube(Pid, Tube, Data, Params)
+            after
+                ok = poolboy:checkin(InstanceRef, Pid)
+            end;
+        _ ->
+            case use(InstanceRef, Tube) of
+                {using, _} ->
+                    put(InstanceRef, Data, Params);
+                Error ->
+                    Error
+            end
     end.
 
 -spec put_in_tube2(con_ref(), tube(), binary()) ->
