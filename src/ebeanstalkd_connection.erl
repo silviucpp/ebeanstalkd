@@ -70,6 +70,8 @@ connection_loop(State) ->
     receive
         {command, From, Tag, CommandPayload} ->
             connection_loop(send_command(From, Tag, State, CommandPayload));
+        {batch_command, From, Tag, Commands} ->
+            connection_loop(send_batch(From, Tag, State, Commands));
         {tcp, _Socket, Packet} ->
             connection_loop(receive_async(Packet, State));
         {tcp_closed, _Socket} ->
@@ -102,6 +104,41 @@ send_command(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength} = S
                             disconnect(State)
                     end
             end
+    end.
+
+send_batch(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength} = State, Commands) ->
+
+    case State#state.socket of
+        undefined ->
+            reply(FromPid, Tag, {error, not_connected}),
+            State;
+        Socket ->
+            case State#state.queue_length > ?MAX_PENDING_REQUESTS_QUEUE of
+                true ->
+                    reply(FromPid, Tag, {error, full_queue}),
+                    State;
+                _ ->
+
+                    case send_batch(Socket, Commands) of
+                        ok ->
+                            Length = length(Commands),
+                            Queue1 = lists:foldl(fun(_, Q) -> queue:in({undefined, undefined}, Q) end, Queue, lists:seq(1, Length-1)),
+                            State#state{queue = queue:in({FromPid, Tag}, Queue1), queue_length = QueueLength + Length};
+                        Error ->
+                            reply(FromPid, Tag, Error),
+                            disconnect(State)
+                    end
+            end
+    end.
+
+send_batch(_Socket, []) ->
+    ok;
+send_batch(Socket, [H|T]) ->
+    case send(Socket, H, true) of
+        ok ->
+            send_batch(Socket, T);
+        Error ->
+            Error
     end.
 
 reconnect(State) ->
@@ -291,5 +328,7 @@ send_notification(undefined, _Notification) ->
 send_notification(Pid, Notification) when is_pid(Pid) ->
     Pid ! Notification.
 
+reply(undefined, undefined, _Response) ->
+    ok;
 reply(Pid, Tag, Response) ->
     Pid ! {response, Tag, Response}.

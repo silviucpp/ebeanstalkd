@@ -67,22 +67,14 @@ put_in_tube(InstanceRef, Tube, Data) ->
     {inserted, job_id()} | {error, reason()}.
 
 put_in_tube(InstanceRef, Tube, Data, Params) ->
-    case is_atom(InstanceRef) of
-        true ->
-            Pid = poolboy:checkout(InstanceRef, true),
-            try
-                put_in_tube(Pid, Tube, Data, Params)
-            after
-                ok = poolboy:checkin(InstanceRef, Pid)
-            end;
-        _ ->
-            case use(InstanceRef, Tube) of
-                {using, _} ->
-                    put(InstanceRef, Data, Params);
-                Error ->
-                    Error
-            end
-    end.
+    %we send both commands in pipeline and only last one will receive the ack
+    %based on kr here this should be fine https://github.com/kr/beanstalkd/issues/332
+    %even if I don't totally agree
+    Pri = ebeanstalkd_utils:lookup(pri, Params, ?DEFAULT_PRIORITY),
+    Delay = ebeanstalkd_utils:lookup(delay, Params, ?DEFAULT_DELAY),
+    TTR = ebeanstalkd_utils:lookup(ttr, Params, ?DEFAULT_TTR),
+    Cmds = [?BK_USE(Tube), ?BK_PUT(Data, Pri, Delay, TTR, size(Data))],
+    bk_exec(InstanceRef, {batch, Cmds}).
 
 -spec put_in_tube2(con_ref(), tube(), binary()) ->
     {inserted, job_id()} | {error, reason()}.
@@ -261,13 +253,7 @@ bk_exec(InstanceRef, Msg) ->
 
 bk_exec(InstanceRef, Msg, Timeout) ->
     Tag = make_ref(),
-
-    case is_atom(InstanceRef) of
-        true ->
-            poolboy:transaction(InstanceRef, fun(Pid) -> Pid ! {command, self(), Tag, Msg} end);
-        _ ->
-            InstanceRef ! {command, self(), Tag, Msg}
-    end,
+    get_pid(InstanceRef) ! get_msg(Msg, self(), Tag),
 
     receive
         {response, Tag, Response} ->
@@ -275,3 +261,13 @@ bk_exec(InstanceRef, Msg, Timeout) ->
     after Timeout ->
         {error, timeout}
     end.
+
+get_msg({batch, CmdList}, Pid, Tag) ->
+    {batch_command, Pid, Tag, CmdList};
+get_msg(Cmd, Pid, Tag) ->
+    {command, Pid, Tag, Cmd}.
+
+get_pid(InstanceRef) when erlang:is_atom(InstanceRef) ->
+    erlpool:pid(InstanceRef);
+get_pid(InstanceRef) ->
+    InstanceRef.

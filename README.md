@@ -54,19 +54,17 @@ You can specify in the `sys.config` the pool specs in the following format:
 
 ```erlang
 [
-    {
-        ebeanstalkd,
-        [
-            {pools, [
-                {pool_one, 
-                    [{size, 10}, {max_overflow, 0}], 
-                    [{host, {127,0,0,1}}, 
-                     {port, 11300}, 
-                     {timeout, 5000}, 
-                     {tube, {use, <<"poolname">>}}]}
+    {ebeanstalkd, [
+        {pools, [
+            {bk_pool,[
+                {size, 50},
+                {host, {127,0,0,1}},
+                {port, 11300},
+                {timeout, 5000},
+                {tube, {use, <<"poolname">>}}
             ]}
-        ]
-    }
+        ]}
+    ]}
 ].
 ```
 
