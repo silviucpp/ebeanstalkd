@@ -6,6 +6,7 @@
 
 -export([
     start/0, start/1, stop/0,
+    start_pool/2, stop_pool/1,
     connect/0, connect/1, close/1,
     put_in_tube/3, put_in_tube/4, put_in_tube2/3, put_in_tube2/4, put/2, put/3,
     use/2, watch/2, ignore/2,
@@ -38,6 +39,22 @@ start(Type) ->
 
 stop() ->
     application:stop(ebeanstalkd).
+
+-spec start_pool(atom(), [pool_option()]) ->
+    ok | {error, reason()}.
+
+start_pool(PoolName, PoolArgs0) ->
+    Size = ebeanstalkd_utils:lookup(size, PoolArgs0, undefined),
+    ok = erlpool:start_pool(PoolName, [
+        {size, Size},
+        {start_mfa, {ebeanstalkd_connection, start_link, [lists:keydelete(size, 1, PoolArgs0)]}}
+    ]).
+
+-spec stop_pool(atom()) ->
+    ok | {error, reason()}.
+
+stop_pool(PoolName) ->
+    erlpool:stop_pool(PoolName).
 
 -spec connect() ->
     {ok, pid()} | {error, reason()}.

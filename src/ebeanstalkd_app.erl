@@ -13,13 +13,7 @@ stop(_State) ->
     ok.
 
 start_pools() ->
-    FunPool = fun({Name, Args0}) ->
-        Size = ebeanstalkd_utils:lookup(size, Args0, undefined),
-        ok = erlpool:start_pool(Name, [
-            {size, Size},
-            {start_mfa, {ebeanstalkd_connection, start_link, [lists:keydelete(size, 1, Args0)]}}
-        ])
-    end,
+    FunPool = fun({Name, Args}) -> ok = ebeanstalkd:start_pool(Name, Args) end,
     lists:foreach(FunPool, get_pools()).
 
 get_pools() ->

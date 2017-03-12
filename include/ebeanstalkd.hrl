@@ -76,6 +76,8 @@
 -type con_ref() :: atom() | pid().
 -type job_id() :: integer().
 
+- type pool_option() :: erlpool:pool_option() | connect_option().
+
 -type connect_option() ::
     {host, host()} |
     {port, non_neg_integer()} |
