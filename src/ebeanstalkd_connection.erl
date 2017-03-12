@@ -118,8 +118,9 @@ send_batch(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength} = Sta
                     reply(FromPid, Tag, {error, full_queue}),
                     State;
                 _ ->
+                    EncodedPayload = lists:foldr(fun(C, Acc) -> [ebeanstalkd_encoder:encode(C) | Acc] end, [], Commands),
 
-                    case send_batch(Socket, Commands) of
+                    case gen_tcp:send(Socket, EncodedPayload) of
                         ok ->
                             Length = length(Commands),
                             Queue1 = lists:foldl(fun(_, Q) -> queue:in({undefined, undefined}, Q) end, Queue, lists:seq(1, Length-1)),
@@ -129,16 +130,6 @@ send_batch(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength} = Sta
                             disconnect(State)
                     end
             end
-    end.
-
-send_batch(_Socket, []) ->
-    ok;
-send_batch(Socket, [H|T]) ->
-    case send(Socket, H, true) of
-        ok ->
-            send_batch(Socket, T);
-        Error ->
-            Error
     end.
 
 reconnect(State) ->
@@ -256,12 +247,7 @@ maybe_ignore_default_tube(_Socket, _Tubes) ->
     ok.
 
 send(Socket, CommandPayload, Async) ->
-    SendResult = case CommandPayload of
-        {Cmd, Data} ->
-            gen_tcp:send(Socket, ebeanstalkd_encoder:encode(Cmd, Data));
-        _ ->
-            gen_tcp:send(Socket, ebeanstalkd_encoder:encode(CommandPayload))
-    end,
+    SendResult = gen_tcp:send(Socket, ebeanstalkd_encoder:encode(CommandPayload)),
 
     case Async of
         true ->

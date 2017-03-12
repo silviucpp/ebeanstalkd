@@ -2,11 +2,10 @@
 
 -include("ebeanstalkd.hrl").
 
--export([encode/2, encode/1]).
+-export([encode/1]).
 
-encode(Cmd, Data) ->
-    <<(cmd_encode(Cmd))/binary, (ebeanstalkd_utils:to_bin(Data))/binary, ?STR_END_LINE>>.
-
+encode({Cmd, Data}) ->
+    <<(cmd_encode(Cmd))/binary, (ebeanstalkd_utils:to_bin(Data))/binary, ?STR_END_LINE>>;
 encode(Cmd) ->
     cmd_encode(Cmd).
 
