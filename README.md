@@ -8,7 +8,7 @@ Features
 
 - Automatically detects when server is down and is trying periodically to reconnect
 - Can provide notifications to another process when connection goes down/up
-- Support for connection pool using poolboy
+- Support for connection pool using erlpool
 - Very big throughput in messages per second that can be sent over one single connection (achieved over 50K/second on a single connection) 
 - Protection against OOM
 - The library is working with binary strings but accepts also lists.
