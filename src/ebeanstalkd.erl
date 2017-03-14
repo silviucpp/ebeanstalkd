@@ -47,6 +47,7 @@ start_pool(PoolName, PoolArgs0) ->
     Size = ebeanstalkd_utils:lookup(size, PoolArgs0, undefined),
     ok = erlpool:start_pool(PoolName, [
         {size, Size},
+        {group, ebeanstalkd},
         {start_mfa, {ebeanstalkd_connection, start_link, [lists:keydelete(size, 1, PoolArgs0)]}}
     ]).
 

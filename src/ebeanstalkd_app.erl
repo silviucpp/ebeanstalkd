@@ -10,6 +10,7 @@ start(_StartType, _StartArgs) ->
     ebeanstalkd_sup:start_link().
 
 stop(_State) ->
+    erlpool:stop_group(ebeanstalkd),
     ok.
 
 start_pools() ->
