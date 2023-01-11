@@ -2,7 +2,9 @@
 
 -include("ebeanstalkd.hrl").
 
--export([decode/1]).
+-export([
+    decode/1
+]).
 
 decode(<<"OUT_OF_MEMORY\r\n", Rest/binary>>) ->
     {ok, {out_of_memory}, Rest};
@@ -59,6 +61,8 @@ decode(<<"OK ", Bin/bytes>>) ->
     end;
 decode(_) ->
     more.
+
+% internals
 
 parse_job(Bin, Name) ->
     case parse_int(Bin, Name, ?BIN_WHITE_SPACE) of

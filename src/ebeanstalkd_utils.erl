@@ -1,6 +1,10 @@
 -module(ebeanstalkd_utils).
 
--export([lookup/3, to_bin/1, env/1]).
+-export([
+    lookup/3,
+    to_bin/1,
+    env/1
+]).
 
 lookup(Key, List, Default) ->
     case lists:keyfind(Key, 1, List) of

@@ -27,8 +27,6 @@
     {keepalive, true},
     {nodelay, true},
     {delay_send, false},
-    %{recbuf, 32000},
-    %{sndbuf, 32000},
     {send_timeout, 10000},
     {send_timeout_close, true},
     {active, true}
@@ -44,13 +42,15 @@ stop(Pid) ->
 init(Parent, Options) ->
     Host = ebeanstalkd_utils:lookup(host, Options, ?DEFAULT_IP),
     Port = ebeanstalkd_utils:lookup(port, Options, ?DEFAULT_PORT),
-    Timeout = ebeanstalkd_utils:lookup(timeout, Options, ?DEFAULT_TIMEOUT),
+    Timeout = ebeanstalkd_utils:lookup(timeout, Options, ?DEFAULT_CONNECTION_TIMEOUT_MS),
     Tube = ebeanstalkd_utils:lookup(tube, Options, ?DEFAULT_TUBE),
     RecInterval = ebeanstalkd_utils:lookup(reconnect_interval, Options, ?RECONNECT_MS),
     Monitor = ebeanstalkd_utils:lookup(monitor, Options, undefined),
     Socket = connect(Host, Port, Timeout, Tube, RecInterval, Monitor),
 
-    State = #state{
+    proc_lib:init_ack(Parent, {ok, self()}),
+
+    connection_loop(#state{
         socket = Socket,
         host = Host,
         port = Port,
@@ -61,10 +61,7 @@ init(Parent, Options) ->
         queue = queue:new(),
         queue_length = 0,
         buff = <<>>
-    },
-
-    proc_lib:init_ack(Parent, {ok, self()}),
-    connection_loop(State).
+    }).
 
 connection_loop(State) ->
     receive
@@ -85,13 +82,13 @@ connection_loop(State) ->
             connection_loop(State)
     end.
 
-send_command(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength} = State, Command) ->
-    case State#state.socket of
+send_command(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength, socket = Socket} = State, Command) ->
+    case Socket of
         undefined ->
             reply(FromPid, Tag, {error, not_connected}),
             State;
-        Socket ->
-            case State#state.queue_length > ?MAX_PENDING_REQUESTS_QUEUE of
+        _ ->
+            case QueueLength > ?MAX_PENDING_REQUESTS_QUEUE of
                 true ->
                     reply(FromPid, Tag, {error, full_queue}),
                     State;
@@ -106,19 +103,19 @@ send_command(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength} = S
             end
     end.
 
-send_batch(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength} = State, Commands) ->
+send_batch(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength, socket = Socket} = State, Commands) ->
 
-    case State#state.socket of
+    case Socket of
         undefined ->
             reply(FromPid, Tag, {error, not_connected}),
             State;
-        Socket ->
-            case State#state.queue_length > ?MAX_PENDING_REQUESTS_QUEUE of
+        _ ->
+            case QueueLength > ?MAX_PENDING_REQUESTS_QUEUE of
                 true ->
                     reply(FromPid, Tag, {error, full_queue}),
                     State;
                 _ ->
-                    EncodedPayload = lists:foldr(fun(C, Acc) -> [ebeanstalkd_encoder:encode(C) | Acc] end, [], Commands),
+                    EncodedPayload = lists:map(fun(C) -> ebeanstalkd_encoder:encode(C) end, Commands),
 
                     case gen_tcp:send(Socket, EncodedPayload) of
                         ok ->
@@ -132,47 +129,54 @@ send_batch(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength} = Sta
             end
     end.
 
-reconnect(State) ->
-    ?INFO_MSG("try to reconnect to ip: ~p port: ~p", [State#state.host, State#state.port]),
-    Socket = connect(State#state.host, State#state.port, State#state.timeout, State#state.tube, State#state.recon_interval, State#state.monitor),
+reconnect(#state{
+    host = Host,
+    port = Port,
+    timeout = Timeout,
+    tube = Tube,
+    recon_interval = ReconInterval,
+    monitor = MonitorRef
+} = State) ->
+    ?INFO_MSG("try to reconnect to ip: ~p port: ~p", [Host, Port]),
+    Socket = connect(Host, Port, Timeout, Tube, ReconInterval, MonitorRef),
     State#state{socket = Socket}.
 
-terminate(normal, State) ->
-    clear_queue(State#state.queue),
+terminate(normal, #state{socket = Socket, queue = Queue}) ->
+    clear_queue(Queue),
 
-    case State#state.socket of
+    case Socket of
         undefined ->
             ok;
-        Socket ->
+        _ ->
             catch gen_tcp:close(Socket)
     end;
 terminate(_Reason, _State) ->
     ok.
 
-connect(Host, Port, Timeout, Tube, ReconnectInterval, NotificationPid) ->
+connect(Host, Port, Timeout, Tube, ReconnectionInterval, NotificationPid) ->
 
     case gen_tcp:connect(Host, Port, ?CONNECT_OPTIONS, Timeout) of
         {ok, Socket} ->
-            ?INFO_MSG("connect completed: ~p", [Socket]),
+            ?INFO_MSG("connection completed: ~p", [Socket]),
 
             case update_tube(Socket, Tube) of
                 ok ->
                     notification_connection_up(NotificationPid),
                     Socket;
                 TubeError ->
-                    ?ERROR_MSG("failed to set the proper tube. error: ~p . reconnect in ~p ms", [TubeError, ReconnectInterval]),
-                    erlang:send_after(ReconnectInterval, self(), reconnect),
+                    ?ERROR_MSG("failed to set the proper tube. error: ~p . attempt reconnection in ~p ms", [TubeError, ReconnectionInterval]),
+                    erlang:send_after(ReconnectionInterval, self(), reconnect),
                     undefined
             end;
         Error ->
-            ?ERROR_MSG("failed to connect. try again in ~p ms. error: ~p", [ReconnectInterval, Error]),
-            erlang:send_after(ReconnectInterval, self(), reconnect),
+            ?ERROR_MSG("failed to connect. try again in ~p ms. error: ~p", [ReconnectionInterval, Error]),
+            erlang:send_after(ReconnectionInterval, self(), reconnect),
             undefined
     end.
 
-disconnect(State) ->
-    clear_queue(State#state.queue),
-    notification_connection_down(State#state.monitor),
+disconnect(#state{queue = Queue, monitor = MonitorRef} = State) ->
+    clear_queue(Queue),
+    notification_connection_down(MonitorRef),
     erlang:send_after(0, self(), reconnect),
     State#state{socket = undefined, queue = queue:new(), queue_length = 0, buff = <<>>}.
 
@@ -311,7 +315,7 @@ notification_connection_down(Pid) ->
 
 send_notification(undefined, _Notification) ->
     ok;
-send_notification(Pid, Notification) when is_pid(Pid) ->
+send_notification(Pid, Notification) ->
     Pid ! Notification.
 
 reply(undefined, undefined, _Response) ->

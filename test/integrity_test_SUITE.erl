@@ -1,5 +1,4 @@
 -module(integrity_test_SUITE).
--author("silviu.caragea").
 
 %% note: you need to run the test on a clean beanstalkd server instance to make sure
 %% jobs are not already exist (part of the tests might fail if jobs are already in tubes)
@@ -20,7 +19,9 @@ groups() -> [
         test_touch,
         test_kick,
         test_stats_job,
-        test_stats,
+        % disabled because of: https://github.com/beanstalkd/beanstalkd/commit/4c275d5945299e4562389f9f2ca7c326173d6335
+        % not being released
+        %test_stats,
         test_stats_tube,
         test_list
     ]}
@@ -32,7 +33,6 @@ init_per_suite(Config) ->
 
 end_per_suite(_Config) ->
     ok.
-
 
 test_put(_Config) ->
     {ok, Q} = ebeanstalkd:connect(),
@@ -132,8 +132,7 @@ test_list(_Config) ->
     {ok, [_H | _T]} = ebeanstalkd:list_tubes(Q),
     true.
 
-
-%internals
+% internals
 
 use_tube(Q, Name) ->
     {watching, _} = ebeanstalkd:watch(Q, Name),

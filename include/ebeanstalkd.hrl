@@ -1,4 +1,5 @@
--author("silviu.caragea").
+
+% logs
 
 -define(PRINT_MSG(Format, Args),
     io:format(Format, Args)).
@@ -48,16 +49,17 @@
 
 -define(DEFAULT_TUBE_NAME, <<"default">>).
 -define(MAX_PENDING_REQUESTS_QUEUE, 1000).
+-define(DEFAULT_WAIT_RESPONSE_TIMEOUT_MS, 20000).
 
 -define(DEFAULT_IP, {127, 0, 0, 1}).
 -define(DEFAULT_PORT, 11300).
--define(DEFAULT_TIMEOUT, 5000).
+-define(DEFAULT_CONNECTION_TIMEOUT_MS, 5000).
 -define(DEFAULT_TUBE, undefined).
 
 -define(RECONNECT_MS, 5000).
 -define(DEFAULT_PRIORITY, 0).
 -define(DEFAULT_DELAY, 0).
--define(DEFAULT_TTR, 60).
+-define(DEFAULT_TTR, 120).
 
 % protocol end line and whitespace
 

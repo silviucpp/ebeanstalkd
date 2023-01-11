@@ -1,8 +1,30 @@
 {application, ebeanstalkd, [
     {description, "Erlang Beanstalkd Client"},
-    {vsn, "1.6.0"},
+    {licenses, ["MIT"]},
+    {links,[{"Github","https://github.com/silviucpp/ebeanstalkd"}]},
+    {vsn, "2.0.0"},
     {registered, []},
-    {applications, [kernel, stdlib, lager, yamerl, erlpool]},
+    {applications, [
+        kernel,
+        stdlib,
+        lager,
+        yamerl,
+        erlpool
+    ]},
     {mod, {ebeanstalkd_app, []}},
-    {env, []}
+    {env, []},
+    {files, [
+        "LICENSE*",
+        "*.MD",
+        "Makefile",
+        "rebar.config",
+        "rebar.lock",
+        "include/*.hrl",
+        "src/*.erl",
+        "src/*.src",
+        "test/*.erl",
+        "test/cover.spec",
+        "benchmark/sys.config",
+        "benchmark/*.erl"
+    ]}
 ]}.
