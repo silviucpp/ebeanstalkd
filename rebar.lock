@@ -1,20 +1,17 @@
 {"1.2.0",
-[{<<"erlpool">>,
-  {git,"https://github.com/silviucpp/erlpool.git",
-       {ref,"7a143852e83bf883e546316aa04b343202e44f93"}},
-  0},
+[{<<"erlpool">>,{pkg,<<"erlpool">>,<<"1.4.1">>},0},
  {<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},1},
- {<<"lager">>,
-  {git,"https://github.com/erlang-lager/lager.git",
-       {ref,"459a3b2cdd9eadd29e5a7ce5c43932f5ccd6eb88"}},
-  0},
- {<<"yamerl">>,
-  {git,"https://github.com/yakaz/yamerl.git",
-       {ref,"39981b9cb9d9edc227cf43a3e19dd16869493553"}},
-  0}]}.
+ {<<"lager">>,{pkg,<<"lager">>,<<"3.9.2">>},0},
+ {<<"yamerl">>,{pkg,<<"yamerl">>,<<"0.10.0">>},0}]}.
 [
 {pkg_hash,[
- {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>}]},
+ {<<"erlpool">>, <<"C6066BDE6B72CFAA0D77DF54B7CE7CCBF95B8AE059D8CA6A4A453D4D9D859058">>},
+ {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>},
+ {<<"lager">>, <<"4CAB289120EB24964E3886BD22323CB5FEFE4510C076992A23AD18CF85413D8C">>},
+ {<<"yamerl">>, <<"4FF81FEE2F1F6A46F1700C0D880B24D193DDB74BD14EF42CB0BCF46E81EF2F8E">>}]},
 {pkg_hash_ext,[
- {<<"goldrush">>, <<"99CB4128CFFCB3227581E5D4D803D5413FA643F4EB96523F77D9E6937D994CEB">>}]}
+ {<<"erlpool">>, <<"D599986EA6D705B0F82C7A42110CE37865624FE62AFC5E5787EA3E07AA173218">>},
+ {<<"goldrush">>, <<"99CB4128CFFCB3227581E5D4D803D5413FA643F4EB96523F77D9E6937D994CEB">>},
+ {<<"lager">>, <<"7F904D9E87A8CB7E66156ED31768D1C8E26EBA1D54F4BC85B1AA4AC1F6340C28">>},
+ {<<"yamerl">>, <<"346ADB2963F1051DC837A2364E4ACF6EB7D80097C0F53CBDC3046EC8EC4B4E6E">>}]}
 ].
