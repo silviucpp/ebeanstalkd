@@ -64,22 +64,28 @@ init(Parent, Options) ->
     }).
 
 connection_loop(State) ->
-    receive
-        {command, From, Tag, CommandPayload} ->
-            connection_loop(send_command(From, Tag, State, CommandPayload));
-        {batch_command, From, Tag, Commands} ->
-            connection_loop(send_batch(From, Tag, State, Commands));
-        {tcp, _Socket, Packet} ->
-            connection_loop(receive_async(Packet, State));
-        {tcp_closed, _Socket} ->
-            connection_loop(disconnect(State));
-        reconnect ->
-            connection_loop(reconnect(State));
-        stop ->
-            terminate(normal, State);
-        UnexpectedMessage ->
-            ?WARNING_MSG("received unexpected message: ~p", [UnexpectedMessage]),
-            connection_loop(State)
+    try
+        receive
+            {command, From, Tag, CommandPayload} ->
+                connection_loop(send_command(From, Tag, State, CommandPayload));
+            {batch_command, From, Tag, Commands} ->
+                connection_loop(send_batch(From, Tag, State, Commands));
+            {tcp, _Socket, Packet} ->
+                connection_loop(receive_async(Packet, State));
+            {tcp_closed, _Socket} ->
+                connection_loop(disconnect(State));
+            reconnect ->
+                connection_loop(reconnect(State));
+            stop ->
+                terminate(normal, State);
+            UnexpectedMessage ->
+                ?WARNING_MSG("received unexpected message: ~p", [UnexpectedMessage]),
+                connection_loop(State)
+        end
+    catch
+        ?EXCEPTION(_, Error, Stacktrace) ->
+            ?WARNING_MSG("exception received: ~p stack: ~p", [Error, ?GET_STACK(Stacktrace)]),
+            terminate(Error, State)
     end.
 
 send_command(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength, socket = Socket} = State, Command) ->
@@ -141,17 +147,20 @@ reconnect(#state{
     Socket = connect(Host, Port, Timeout, Tube, ReconInterval, MonitorRef),
     State#state{socket = Socket}.
 
-terminate(normal, #state{socket = Socket, queue = Queue}) ->
-    clear_queue(Queue),
+terminate(Reason, #state{socket = Socket, queue = Queue}) ->
+    case Reason of
+        normal ->
+            clear_queue(Queue, {error, connection_closed});
+        _ ->
+            clear_queue(Queue, {error, Reason})
+    end,
 
     case Socket of
         undefined ->
             ok;
         _ ->
             catch gen_tcp:close(Socket)
-    end;
-terminate(_Reason, _State) ->
-    ok.
+    end.
 
 connect(Host, Port, Timeout, Tube, ReconnectionInterval, NotificationPid) ->
 
@@ -301,8 +310,11 @@ receive_async(Packet, #state{buff = ExistingBuffer, queue = Queue, queue_length 
     end.
 
 clear_queue(Queue) ->
+    clear_queue(Queue, {error, not_connected}).
+
+clear_queue(Queue, Reason) ->
     FunNotifyPendingReq = fun({FromPid, Tag}) ->
-        reply(FromPid, Tag, {error, not_connected})
+        reply(FromPid, Tag, Reason)
     end,
 
     lists:foreach(FunNotifyPendingReq, queue:to_list(Queue)).

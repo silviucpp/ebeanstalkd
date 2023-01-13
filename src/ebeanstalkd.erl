@@ -165,7 +165,7 @@ reserve(InstanceRef) ->
     {reserved, job_id(), binary()} | {error, reason()}.
 
 reserve(InstanceRef, Timeout) ->
-    bk_exec(InstanceRef, ?BK_RESERVE(Timeout), infinity).
+    bk_exec(InstanceRef, ?BK_RESERVE(Timeout), (Timeout*1000 + 2000)).
 
 -spec delete(con_ref(), job_id()) ->
     {deleted} | {error, reason()}.

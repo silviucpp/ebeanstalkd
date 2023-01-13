@@ -1,3 +1,12 @@
+% stacktrace
+
+-ifdef(OTP_RELEASE). %% this implies 21 or higher
+    -define(EXCEPTION(Class, Reason, Stacktrace), Class:Reason:Stacktrace).
+    -define(GET_STACK(Stacktrace), Stacktrace).
+-else.
+    -define(EXCEPTION(Class, Reason, _), Class:Reason).
+    -define(GET_STACK(_), erlang:get_stacktrace()).
+-endif.
 
 % logs
 
@@ -49,7 +58,7 @@
 
 -define(DEFAULT_TUBE_NAME, <<"default">>).
 -define(MAX_PENDING_REQUESTS_QUEUE, 1000).
--define(DEFAULT_WAIT_RESPONSE_TIMEOUT_MS, 20000).
+-define(DEFAULT_WAIT_RESPONSE_TIMEOUT_MS, 10000).
 
 -define(DEFAULT_IP, {127, 0, 0, 1}).
 -define(DEFAULT_PORT, 11300).

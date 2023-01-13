@@ -3,8 +3,6 @@
 %% note: you need to run the test on a clean beanstalkd server instance to make sure
 %% jobs are not already exist (part of the tests might fail if jobs are already in tubes)
 
--include_lib("common_test/include/ct.hrl").
-
 -compile(export_all).
 
 all() -> [
@@ -13,8 +11,11 @@ all() -> [
 
 groups() -> [
     {ebeanstalkd_group, [sequence], [
+        test_pool,
+        test_crash,
         test_put,
         test_use_watch_reserve_ignore_release_delete,
+        test_reserve_timeout,
         test_bury_peek,
         test_touch,
         test_kick,
@@ -33,6 +34,19 @@ init_per_suite(Config) ->
 
 end_per_suite(_Config) ->
     ok.
+
+test_pool(_Config) ->
+    {inserted, Jb1} = ebeanstalkd:put(bk_pool, <<"job1">>),
+    {deleted} = ebeanstalkd:delete(bk_pool, Jb1),
+    ok = ebeanstalkd:stop_pool(bk_pool).
+
+test_crash(_Config) ->
+    {ok, Q} = ebeanstalkd:connect(),
+    ok = use_tube(Q, <<"test_crash">>),
+    spawn(fun() -> timer:sleep(1000),Q!{tcp, null, null} end),
+    {error, badarg} = ebeanstalkd:reserve(Q),
+    timer:sleep(1000),
+    false = is_process_alive(Q).
 
 test_put(_Config) ->
     {ok, Q} = ebeanstalkd:connect(),
@@ -57,6 +71,13 @@ test_use_watch_reserve_ignore_release_delete(_Config) ->
     {deleted} = ebeanstalkd:delete(Q, JobId),
     ok = ebeanstalkd:close(Q),
     true.
+
+test_reserve_timeout(_Config) ->
+    {ok, Q} = ebeanstalkd:connect(),
+    ok = use_tube(Q, <<"no_msg_tube">>),
+    {timed_out} = ebeanstalkd:reserve(Q, 2),
+    {inserted, Jb1} = ebeanstalkd:put(Q, <<"12">>),
+    {reserved, Jb1, <<"12">>} = ebeanstalkd:reserve(Q).
 
 test_bury_peek(_Config) ->
     {ok, Q} = ebeanstalkd:connect(),

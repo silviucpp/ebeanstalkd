@@ -24,4 +24,5 @@ ct:
 			-cover test/cover.spec \
 			-dir $(ROOT_TEST)/ebeanstalkd/test $(SUITE_EXEC) \
 			-pa $(ROOT_TEST)/*/ebin \
-			-logdir log
+			-logdir log \
+			-erl_args -config $(ROOT_TEST)/ebeanstalkd/test/sys.config
