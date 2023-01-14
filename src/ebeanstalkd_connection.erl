@@ -5,7 +5,13 @@
 -export([
     start_link/1,
     stop/1,
-    init/2
+    init/2,
+
+    % system callbacks: https://www.erlang.org/doc/design_principles/spec_proc.html
+
+    system_continue/3,
+    system_terminate/4,
+    system_code_change/4
 ]).
 
 -record(state, {
@@ -50,7 +56,7 @@ init(Parent, Options) ->
 
     proc_lib:init_ack(Parent, {ok, self()}),
 
-    connection_loop(#state{
+    Result = connection_loop(Parent, #state{
         socket = Socket,
         host = Host,
         port = Port,
@@ -61,32 +67,50 @@ init(Parent, Options) ->
         queue = queue:new(),
         queue_length = 0,
         buff = <<>>
-    }).
+    }),
 
-connection_loop(State) ->
+    case Result of
+        {crash, Class, Error, Stacktrace} ->
+            erlang:raise(Class, Error, Stacktrace);
+        Other ->
+            exit(Other)
+    end.
+
+connection_loop(Parent, State) ->
     try
         receive
             {command, From, Tag, CommandPayload} ->
-                connection_loop(send_command(From, Tag, State, CommandPayload));
+                connection_loop(Parent, send_command(From, Tag, State, CommandPayload));
             {batch_command, From, Tag, Commands} ->
-                connection_loop(send_batch(From, Tag, State, Commands));
+                connection_loop(Parent, send_batch(From, Tag, State, Commands));
             {tcp, _Socket, Packet} ->
-                connection_loop(receive_async(Packet, State));
+                connection_loop(Parent, receive_async(Packet, State));
             {tcp_closed, _Socket} ->
-                connection_loop(disconnect(State));
+                connection_loop(Parent, disconnect(State));
             reconnect ->
-                connection_loop(reconnect(State));
+                connection_loop(Parent, reconnect(State));
             stop ->
                 terminate(normal, State);
+            {system, From, Request} ->
+                sys:handle_system_msg(Request, From, Parent, ?MODULE, [], State);
             UnexpectedMessage ->
                 ?WARNING_MSG("received unexpected message: ~p", [UnexpectedMessage]),
-                connection_loop(State)
+                connection_loop(Parent, State)
         end
     catch
-        ?EXCEPTION(_, Error, Stacktrace) ->
+        ?EXCEPTION(Class, Error, Stacktrace) ->
             ?WARNING_MSG("exception received: ~p stack: ~p", [Error, ?GET_STACK(Stacktrace)]),
-            terminate(Error, State)
+            terminate({crash, Class, Error, ?GET_STACK(Stacktrace)}, State)
     end.
+
+system_continue(Parent, _Deb, State) ->
+    connection_loop(Parent, State).
+
+system_terminate(Reason, _Parent, _Deb, State) ->
+    terminate(Reason, State).
+
+system_code_change(Misc, _, _, _) ->
+    {ok, Misc}.
 
 send_command(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength, socket = Socket} = State, Command) ->
     case Socket of
@@ -151,6 +175,8 @@ terminate(Reason, #state{socket = Socket, queue = Queue}) ->
     case Reason of
         normal ->
             clear_queue(Queue, {error, connection_closed});
+        {crash, Class, Error, Stack} ->
+            clear_queue(Queue, {Class, {Error, Stack}});
         _ ->
             clear_queue(Queue, {error, Reason})
     end,
@@ -160,7 +186,8 @@ terminate(Reason, #state{socket = Socket, queue = Queue}) ->
             ok;
         _ ->
             catch gen_tcp:close(Socket)
-    end.
+    end,
+    Reason.
 
 connect(Host, Port, Timeout, Tube, ReconnectionInterval, NotificationPid) ->
 
