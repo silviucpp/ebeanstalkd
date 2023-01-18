@@ -94,12 +94,12 @@ connection_loop(Parent, State) ->
             {system, From, Request} ->
                 sys:handle_system_msg(Request, From, Parent, ?MODULE, [], State);
             UnexpectedMessage ->
-                ?WARNING_MSG("received unexpected message: ~p", [UnexpectedMessage]),
+                ?LOG_WARNING("received unexpected message: ~p", [UnexpectedMessage]),
                 connection_loop(Parent, State)
         end
     catch
         ?EXCEPTION(Class, Error, Stacktrace) ->
-            ?WARNING_MSG("exception received: ~p stack: ~p", [Error, ?GET_STACK(Stacktrace)]),
+            ?LOG_WARNING("exception received: ~p stack: ~p", [Error, ?GET_STACK(Stacktrace)]),
             terminate({crash, Class, Error, ?GET_STACK(Stacktrace)}, State)
     end.
 
@@ -167,7 +167,7 @@ reconnect(#state{
     recon_interval = ReconInterval,
     monitor = MonitorRef
 } = State) ->
-    ?INFO_MSG("try to reconnect to ip: ~p port: ~p", [Host, Port]),
+    ?LOG_INFO("try to reconnect to ip: ~p port: ~p", [Host, Port]),
     Socket = connect(Host, Port, Timeout, Tube, ReconInterval, MonitorRef),
     State#state{socket = Socket}.
 
@@ -193,19 +193,19 @@ connect(Host, Port, Timeout, Tube, ReconnectionInterval, NotificationPid) ->
 
     case gen_tcp:connect(Host, Port, ?CONNECT_OPTIONS, Timeout) of
         {ok, Socket} ->
-            ?INFO_MSG("connection completed: ~p", [Socket]),
+            ?LOG_INFO("connection completed: ~p", [Socket]),
 
             case update_tube(Socket, Tube) of
                 ok ->
                     notification_connection_up(NotificationPid),
                     Socket;
                 TubeError ->
-                    ?ERROR_MSG("failed to set the proper tube. error: ~p . attempt reconnection in ~p ms", [TubeError, ReconnectionInterval]),
+                    ?LOG_ERROR("failed to set the proper tube. error: ~p . attempt reconnection in ~p ms", [TubeError, ReconnectionInterval]),
                     erlang:send_after(ReconnectionInterval, self(), reconnect),
                     undefined
             end;
         Error ->
-            ?ERROR_MSG("failed to connect. try again in ~p ms. error: ~p", [ReconnectionInterval, Error]),
+            ?LOG_ERROR("failed to connect. try again in ~p ms. error: ~p", [ReconnectionInterval, Error]),
             erlang:send_after(ReconnectionInterval, self(), reconnect),
             undefined
     end.
@@ -256,7 +256,7 @@ set_tube(Socket, Tube) ->
         {ok, {using, _}} ->
             ok;
         Result ->
-            ?ERROR_MSG("failed to set tube: ~p result: ~p", [Tube, Result]),
+            ?LOG_ERROR("failed to set tube: ~p result: ~p", [Tube, Result]),
             Result
     end.
 
@@ -265,7 +265,7 @@ ignore_tube(Socket, Tube) ->
         {ok, {watching, _}} ->
             ok;
         Result ->
-            ?ERROR_MSG("failed to ignore tube: ~p error: ~p", [Tube, Result]),
+            ?LOG_ERROR("failed to ignore tube: ~p error: ~p", [Tube, Result]),
             Result
     end.
 

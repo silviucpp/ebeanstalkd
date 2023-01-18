@@ -1,3 +1,10 @@
+% logs
+
+-include_lib("kernel/include/logger.hrl").
+
+-define(LOG_PRINT(Format, Args),
+    io:format(Format, Args)).
+
 % stacktrace
 
 -ifdef(OTP_RELEASE). %% this implies 21 or higher
@@ -7,26 +14,6 @@
     -define(EXCEPTION(Class, Reason, _), Class:Reason).
     -define(GET_STACK(_), erlang:get_stacktrace()).
 -endif.
-
-% logs
-
--define(PRINT_MSG(Format, Args),
-    io:format(Format, Args)).
-
--define(DEBUG_MSG(Format, Args),
-    lager:debug(Format, Args)).
-
--define(INFO_MSG(Format, Args),
-    lager:info(Format, Args)).
-
--define(WARNING_MSG(Format, Args),
-    lager:warning(Format, Args)).
-
--define(ERROR_MSG(Format, Args),
-    lager:error(Format, Args)).
-
--define(CRITICAL_MSG(Format, Args),
-    lager:critical(Format, Args)).
 
 % commands
 
