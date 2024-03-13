@@ -5,7 +5,8 @@
     to_bin/1,
     env/1,
     safe_call/2,
-    safe_call/3
+    safe_call/3,
+    join/2
 ]).
 
 lookup(Key, List, Default) ->
@@ -43,3 +44,15 @@ safe_call(Receiver, Message, Timeout) ->
         _: Exception ->
             {error, Exception}
     end.
+
+join([Head | Tail], Sep) ->
+    join_list_sep(Tail, Sep, [Head]);
+join([], _Sep) ->
+    <<>>.
+
+% internals
+
+join_list_sep([Head | Tail], Sep, Acc) ->
+    join_list_sep(Tail, Sep, [Head, Sep | Acc]);
+join_list_sep([], _Sep, Acc) ->
+    list_to_binary(lists:reverse(Acc)).

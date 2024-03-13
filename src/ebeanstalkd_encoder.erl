@@ -14,13 +14,11 @@ encode(Cmd) ->
 % internals
 
 cmd_encode(Cmd) when is_list(Cmd) ->
-    cmd_encode(Cmd, <<>>);
+    cmd_encode(Cmd, []);
 cmd_encode(Cmd) when is_binary(Cmd) ->
     <<Cmd/binary, ?STR_END_LINE>>.
 
-cmd_encode([H|T], <<>>) ->
-    cmd_encode(T, ebeanstalkd_utils:to_bin(H));
 cmd_encode([H|T], Acc) ->
-    cmd_encode(T, <<Acc/binary, ?STR_WHITE_SPACE, (ebeanstalkd_utils:to_bin(H))/binary>>);
-cmd_encode([], Acc) ->
-    <<Acc/binary, ?STR_END_LINE>>.
+    cmd_encode(T, [ebeanstalkd_utils:to_bin(H)|Acc]);
+cmd_encode([], Acc0) ->
+    <<(ebeanstalkd_utils:join(lists:reverse(Acc0), ?BIN_WHITE_SPACE))/binary, ?STR_END_LINE>>.
