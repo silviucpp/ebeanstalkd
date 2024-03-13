@@ -289,26 +289,20 @@ list_tube_used(InstanceRef) ->
 list_tubes_watched(InstanceRef) ->
     bk_exec(InstanceRef, ?BK_LIST_TUBES_WATCHED()).
 
-%internals
+% internals
 
 bk_exec(InstanceRef, Msg) ->
     bk_exec(InstanceRef, Msg, ?DEFAULT_WAIT_RESPONSE_TIMEOUT_MS).
 
 bk_exec(InstanceRef, Msg, Timeout) ->
-    Tag = make_ref(),
-    get_pid(InstanceRef) ! get_msg(Msg, self(), Tag),
+    Pid = get_pid(InstanceRef),
 
-    receive
-        {response, Tag, Response} ->
-            Response
-    after Timeout ->
-        {error, timeout}
+    case Msg of
+        {batch, CmdList} ->
+            ebeanstalkd_connection:batch_command(Pid, CmdList, Timeout);
+        _ ->
+            ebeanstalkd_connection:command(Pid, Msg, Timeout)
     end.
-
-get_msg({batch, CmdList}, Pid, Tag) ->
-    {batch_command, Pid, Tag, CmdList};
-get_msg(Cmd, Pid, Tag) ->
-    {command, Pid, Tag, Cmd}.
 
 get_pid(InstanceRef) when erlang:is_atom(InstanceRef) ->
     erlpool:pid(InstanceRef);
