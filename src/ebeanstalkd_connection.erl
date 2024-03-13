@@ -24,7 +24,7 @@
     monitor,
     queue,
     queue_length,
-    buff
+    decoder_state
 }).
 
 -define(CONNECT_OPTIONS,  [
@@ -46,18 +46,17 @@ stop(Pid) ->
     ok.
 
 init(Parent, Options) ->
+
+    proc_lib:init_ack(Parent, {ok, self()}),
+
     Host = ebeanstalkd_utils:lookup(host, Options, ?DEFAULT_IP),
     Port = ebeanstalkd_utils:lookup(port, Options, ?DEFAULT_PORT),
     Timeout = ebeanstalkd_utils:lookup(timeout, Options, ?DEFAULT_CONNECTION_TIMEOUT_MS),
     Tube = ebeanstalkd_utils:lookup(tube, Options, ?DEFAULT_TUBE),
     RecInterval = ebeanstalkd_utils:lookup(reconnect_interval, Options, ?RECONNECT_MS),
     Monitor = ebeanstalkd_utils:lookup(monitor, Options, undefined),
-    Socket = connect(Host, Port, Timeout, Tube, RecInterval, Monitor),
 
-    proc_lib:init_ack(Parent, {ok, self()}),
-
-    Result = connection_loop(Parent, #state{
-        socket = Socket,
+    NewState = connect(#state{
         host = Host,
         port = Port,
         tube = Tube,
@@ -66,10 +65,10 @@ init(Parent, Options) ->
         monitor = Monitor,
         queue = queue:new(),
         queue_length = 0,
-        buff = <<>>
+        decoder_state = ebeanstalkd_decoder:new()
     }),
 
-    case Result of
+    case connection_loop(Parent, NewState) of
         {crash, Class, Error, Stacktrace} ->
             erlang:raise(Class, Error, Stacktrace);
         Other ->
@@ -84,7 +83,14 @@ connection_loop(Parent, State) ->
             {batch_command, From, Tag, Commands} ->
                 connection_loop(Parent, send_batch(From, Tag, State, Commands));
             {tcp, _Socket, Packet} ->
-                connection_loop(Parent, receive_async(Packet, State));
+                NewState = case decode_packet(Packet, State) of
+                    {ok, NewState0} ->
+                        NewState0;
+                    {error, ErrorMsg, NewState0} ->
+                        ?LOG_WARNING("failed to parse protocol: ~p", [ErrorMsg]),
+                        disconnect(NewState0)
+                end,
+                connection_loop(Parent, NewState);
             {tcp_closed, _Socket} ->
                 connection_loop(Parent, disconnect(State));
             reconnect ->
@@ -123,7 +129,7 @@ send_command(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength, soc
                     reply(FromPid, Tag, {error, full_queue}),
                     State;
                 _ ->
-                    case send(Socket, Command, true) of
+                    case gen_tcp:send(Socket, ebeanstalkd_encoder:encode(Command)) of
                         ok ->
                             State#state{queue = queue:in({FromPid, Tag}, Queue), queue_length = QueueLength + 1};
                         UnexpectedResult ->
@@ -159,17 +165,9 @@ send_batch(FromPid, Tag, #state{queue = Queue, queue_length = QueueLength, socke
             end
     end.
 
-reconnect(#state{
-    host = Host,
-    port = Port,
-    timeout = Timeout,
-    tube = Tube,
-    recon_interval = ReconInterval,
-    monitor = MonitorRef
-} = State) ->
+reconnect(#state{host = Host, port = Port} = State) ->
     ?LOG_INFO("try to reconnect to ip: ~p port: ~p", [Host, Port]),
-    Socket = connect(Host, Port, Timeout, Tube, ReconInterval, MonitorRef),
-    State#state{socket = Socket}.
+    connect(State).
 
 terminate(Reason, #state{socket = Socket, queue = Queue}) ->
     case Reason of
@@ -189,60 +187,60 @@ terminate(Reason, #state{socket = Socket, queue = Queue}) ->
     end,
     Reason.
 
-connect(Host, Port, Timeout, Tube, ReconnectionInterval, NotificationPid) ->
-
+connect(#state{host = Host, port = Port, timeout = Timeout, tube = Tube, monitor = NotificationPid, recon_interval = ReconnectionInterval, decoder_state = DecoderState} = State) ->
     case gen_tcp:connect(Host, Port, ?CONNECT_OPTIONS, Timeout) of
         {ok, Socket} ->
             ?LOG_INFO("connection completed: ~p", [Socket]),
 
-            case update_tube(Socket, Tube) of
-                ok ->
+            case update_tube(Socket, Tube, DecoderState) of
+                {ok, NewDecoderState} ->
                     notification_connection_up(NotificationPid),
-                    Socket;
+                    State#state{socket = Socket, decoder_state = NewDecoderState};
                 TubeError ->
                     ?LOG_ERROR("failed to set the proper tube. error: ~p . attempt reconnection in ~p ms", [TubeError, ReconnectionInterval]),
                     erlang:send_after(ReconnectionInterval, self(), reconnect),
-                    undefined
+                    gen_tcp:close(Socket),
+                    State#state{socket = undefined, decoder_state = ebeanstalkd_decoder:new()}
             end;
         Error ->
             ?LOG_ERROR("failed to connect. try again in ~p ms. error: ~p", [ReconnectionInterval, Error]),
             erlang:send_after(ReconnectionInterval, self(), reconnect),
-            undefined
+            State#state{socket = undefined, decoder_state = ebeanstalkd_decoder:new()}
     end.
 
 disconnect(#state{queue = Queue, monitor = MonitorRef} = State) ->
     clear_queue(Queue),
     notification_connection_down(MonitorRef),
     erlang:send_after(0, self(), reconnect),
-    State#state{socket = undefined, queue = queue:new(), queue_length = 0, buff = <<>>}.
+    State#state{socket = undefined, queue = queue:new(), queue_length = 0, decoder_state = ebeanstalkd_decoder:new()}.
 
-update_tube(Socket, TubeOption) ->
+update_tube(Socket, TubeOption, DecoderState) ->
     case TubeOption of
         undefined ->
-            ok;
+            {ok, DecoderState};
         _ ->
-            case set_tube_option(Socket, TubeOption) of
-                ok ->
-                    maybe_ignore_default_tube(Socket, TubeOption);
+            case set_tube_option(Socket, TubeOption, DecoderState) of
+                {ok, NewDecoderState} ->
+                    maybe_ignore_default_tube(Socket, TubeOption, NewDecoderState);
                 Result ->
                     Result
             end
     end.
 
-set_tube_option(Socket, {_, Tube} = TubeCommand) when is_binary(Tube) ->
-    set_tube(Socket, TubeCommand);
+set_tube_option(Socket, {_, Tube} = TubeCommand, DecoderState) when is_binary(Tube) ->
+    set_tube(Socket, TubeCommand, DecoderState);
 
-set_tube_option(Socket, {Command, [H|T]}) ->
-    case set_tube(Socket, {Command, H}) of
-        ok ->
-            set_tube_option(Socket, {Command, T});
+set_tube_option(Socket, {Command, [H|T]}, DecoderState) ->
+    case set_tube(Socket, {Command, H}, DecoderState) of
+        {ok, NewDecoderState} ->
+            set_tube_option(Socket, {Command, T}, NewDecoderState);
         Result ->
             Result
     end;
-set_tube_option(_Socket, {_Command, []}) ->
-    ok.
+set_tube_option(_Socket, {_Command, []}, DecoderState) ->
+    {ok, DecoderState}.
 
-set_tube(Socket, Tube) ->
+set_tube(Socket, Tube, DecoderState) ->
     Cmd = case Tube of
         {watch, TubeName} ->
             ?BK_WATCH(TubeName);
@@ -250,90 +248,79 @@ set_tube(Socket, Tube) ->
             ?BK_USE(TubeName)
     end,
 
-    case send(Socket, Cmd, false) of
-        {ok, {watching, _}} ->
-            ok;
-        {ok, {using, _}} ->
-            ok;
+    case send_sync(Socket, Cmd, DecoderState) of
+        {ok, Response, NewDecoderState} ->
+            case Response of
+                {watching, _} ->
+                    {ok, NewDecoderState};
+                {using, _} ->
+                    {ok, NewDecoderState};
+                Result ->
+                    ?LOG_ERROR("failed to set tube: ~p result: ~p", [Tube, Response]),
+                    {error, {unexpected_result, Result}}
+            end;
         Result ->
             ?LOG_ERROR("failed to set tube: ~p result: ~p", [Tube, Result]),
             Result
     end.
 
-ignore_tube(Socket, Tube) ->
-    case send(Socket, ?BK_IGNORE(Tube), false) of
-        {ok, {watching, _}} ->
-            ok;
+ignore_tube(Socket, Tube, DecoderState) ->
+    case send_sync(Socket, ?BK_IGNORE(Tube), DecoderState) of
+        {ok, {watching, _}, NewDecoderState} ->
+            {ok, NewDecoderState};
         Result ->
             ?LOG_ERROR("failed to ignore tube: ~p error: ~p", [Tube, Result]),
             Result
     end.
 
-maybe_ignore_default_tube(Socket, {watch, TubeList}) when is_list(TubeList) ->
+maybe_ignore_default_tube(Socket, {watch, TubeList}, DecoderState) when is_list(TubeList) ->
     case lists:member(?DEFAULT_TUBE_NAME, TubeList) of
         false ->
-            ignore_tube(Socket, ?DEFAULT_TUBE_NAME);
+            ignore_tube(Socket, ?DEFAULT_TUBE_NAME, DecoderState);
         _ ->
-            ok
+            {ok, DecoderState}
     end;
-maybe_ignore_default_tube(Socket, {watch, Tube}) when is_binary(Tube) ->
+maybe_ignore_default_tube(Socket, {watch, Tube}, DecoderState) when is_binary(Tube) ->
     case Tube of
         ?DEFAULT_TUBE_NAME ->
-            ok;
+            {ok, DecoderState};
         _ ->
-            ignore_tube(Socket, ?DEFAULT_TUBE_NAME)
+            ignore_tube(Socket, ?DEFAULT_TUBE_NAME, DecoderState)
     end;
-maybe_ignore_default_tube(_Socket, _Tubes) ->
-    ok.
+maybe_ignore_default_tube(_Socket, _Tubes, DecoderState) ->
+    {ok, DecoderState}.
 
-send(Socket, CommandPayload, Async) ->
-    SendResult = gen_tcp:send(Socket, ebeanstalkd_encoder:encode(CommandPayload)),
-
-    case Async of
-        true ->
-            SendResult;
-        _ ->
-            case SendResult of
-                ok ->
-                    recv(Socket);
-                _ ->
-                    SendResult
-            end
+send_sync(Socket, CommandPayload, DecoderState) ->
+    case gen_tcp:send(Socket, ebeanstalkd_encoder:encode(CommandPayload)) of
+        ok ->
+            recv_and_decode_sync(Socket, DecoderState);
+        Error ->
+            Error
     end.
 
-recv(Socket) ->
-    recv(Socket, <<>>).
-
-recv(Socket, Data) ->
+recv_and_decode_sync(Socket, DecoderState) ->
     receive
         {tcp, Socket, Packet} ->
-            NewData = <<Data/binary, Packet/binary>>,
-            case ebeanstalkd_decoder:decode(NewData) of
-                more ->
-                    recv(Socket, NewData);
-                {ok, X, <<>>} ->
-                    {ok, X}
+            case ebeanstalkd_decoder:decode(Packet, DecoderState) of
+                {ok, _, _} = R ->
+                    R;
+                {more, NewDecoderState} ->
+                    recv_and_decode_sync(Socket, NewDecoderState)
             end;
         {tcp_closed, S} ->
             {tcp_closed, S}
     end.
 
-receive_async(Packet, #state{buff = ExistingBuffer, queue = Queue, queue_length = QueueLength} = State) ->
-    NewData = <<ExistingBuffer/binary, Packet/binary>>,
-
-    case ebeanstalkd_decoder:decode(NewData) of
-        more ->
-            State#state{buff = NewData};
-        {ok, X, Rest} ->
+decode_packet(Packet, #state{decoder_state = DecoderState, queue = Queue, queue_length = QueueLength} = State) ->
+    case ebeanstalkd_decoder:decode(Packet, DecoderState) of
+        {ok, X, NewDecoderState} ->
             {{value, {FromPid, Tag}}, Queue2} = queue:out(Queue),
             reply(FromPid, Tag, X),
-
-            case Rest of
-                <<>> ->
-                    State#state{queue = Queue2, queue_length = QueueLength - 1, buff = <<>>};
-                _ ->
-                    receive_async(Rest, State#state{buff = <<>>, queue = Queue2, queue_length = QueueLength - 1})
-            end
+            decode_packet(<<>>, State#state{queue = Queue2, queue_length = QueueLength-1, decoder_state = NewDecoderState});
+        {more, NewDecoderState} ->
+            {ok, State#state{decoder_state = NewDecoderState}};
+        Error ->
+            {error, Error, State}
     end.
 
 clear_queue(Queue) ->
