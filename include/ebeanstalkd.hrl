@@ -15,10 +15,17 @@
     -define(GET_STACK(_), erlang:get_stacktrace()).
 -endif.
 
-% commands
+-define(CAPS_JOBS_WITH_TUBE, jobs_with_tube).
+
+% commands -> custom
+% this set of commands are working only with this server fork: https://github.com/silviucpp/beanstalkd
+
+-define(BK_PUT_IN_TUBE(Tube, Data, Pri, Delay, Ttr, Size), {[<<"put-in-tube">>, Tube, Pri, Delay, Ttr, Size], Data}).
+-define(BK_SET_CAPABILITIES(Caps), [<<"set-caps">>, Caps]).
+
+% commands -> standard
 
 -define(BK_PUT(Data, Pri, Delay, Ttr, Size), {[<<"put">>, Pri, Delay, Ttr, Size], Data}).
--define(BK_PUT_IN_TUBE(Tube, Data, Pri, Delay, Ttr, Size), {[<<"put-in-tube">>, Tube, Pri, Delay, Ttr, Size], Data}).
 -define(BK_USE(Tube), [<<"use">>, Tube]).
 -define(BK_RESERVE(), <<"reserve">>).
 -define(BK_RESERVE(Timeout), [<<"reserve-with-timeout">>, Timeout]).
@@ -73,6 +80,7 @@
 -type use_tube() :: {use, tube()}.
 -type con_ref() :: atom() | pid().
 -type job_id() :: integer().
+-type caps() :: ?CAPS_JOBS_WITH_TUBE.
 
 - type pool_option() :: erlpool:pool_option() | connect_option().
 

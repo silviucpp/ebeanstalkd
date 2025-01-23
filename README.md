@@ -1,6 +1,6 @@
 # ebeanstalkd
 
-[![Build Status](https://travis-ci.com/silviucpp/ebeanstalkd.svg?branch=master)](https://travis-ci.com/github/silviucpp/ebeanstalkd)
+[![Build Status](https://app.travis-ci.com/silviucpp/ebeanstalkd.svg?branch=master)](https://travis-ci.com/github/silviucpp/ebeanstalkd)
 [![GitHub](https://img.shields.io/github/license/silviucpp/ebeanstalkd)](https://github.com/silviucpp/ebeanstalkd/blob/master/LICENSE)
 [![Hex.pm](https://img.shields.io/hexpm/v/ebeanstalkd)](https://hex.pm/packages/ebeanstalkd)
 
@@ -8,12 +8,12 @@ A high performant Erlang client for [beanstalkd][1] work queue
 
 ### Features
 
-- Automatically detects when server is down and is trying periodically to reconnect
-- Can provide notifications to another process when connection goes down/up
-- Support for connection pool using erlpool
-- Very big throughput in messages per second that can be sent over one single connection (achieved over 50K/second on a single connection) 
-- Protection against OOM
-- The library is working with binary strings but accepts also lists.
+- Automatically detects server downtime and periodically attempts reconnection.
+- Offers notifications to another process when the connection goes down or is restored.
+- Includes support for connection pooling via `erlpool`.
+- High message throughput, exceeding 50K messages per second over a single connection.
+- Protection against Out of Memory (OOM) errors.
+- Operates with binary strings but also accepts lists.
 
 ### Quick start
 
@@ -25,7 +25,7 @@ Add `ebeanstalkd` as a dependency to your project. The library works with `rebar
 }.
 ```
 
-The API is very simple: For example the following code is creating a connection, put a job, then reserve the job, delete it and close the connection:
+The API is straightforward. For instance, the following code demonstrates creating a connection, adding a job, reserving the job, deleting it, and then closing the connection:
 
 ```erlang
 {ok, Pid} = ebeanstalkd:connect().
@@ -35,7 +35,7 @@ The API is very simple: For example the following code is creating a connection,
 ok = ebeanstalkd:close(Pid).
 ```
 
-While connectiong you can specify the following options (using `ebeanstalkd:connect/1`):
+While connecting you can specify the following options (using `ebeanstalkd:connect/1`):
 
 - `host` - Beanstalkd server host. Default `{127,0,0,1}` example: `{host, {127,0,0,1}`
 - `port` - Beanstalkd server port. Default `11300` example: `{port, 11300}`
@@ -67,7 +67,7 @@ You can specify in the `sys.config` the pool specs in the following format:
 ]}
 ```
 
-The API when using either the connection pool or plain connection mechanism is the same. The only difference is that instead of using a pid as the first parameter you are using the name of the pool (atom): 
+The API is identical whether you use a connection pool or a plain connection mechanism. The only difference is that, instead of using a PID as the first parameter, you use the pool name (an atom): 
 
 ```erlang
 application:ensure_all_started(ebeanstalkd).
@@ -97,10 +97,13 @@ load_test:run(false, 10, 100000, 5*1024).
 
 You can run the benchmark by running `make bench`
 
-### Notes
+### Custom features
 
-- The `ebeanstalkd:put_in_tube2` works only with [my server fork currently][2]. This command `put_in_tube` is not supported by the official protocol. 
-A lot of clients are sending a `use` command and then a `put` but this is decreasing performances. Also `ebeanstalkd` offers this functionality in this way using `ebeanstalkd:put_in_tube`  
+The following features are only available when using [my server fork][2]:
+
+- `ebeanstalkd:put_in_tube2` allows you to place a job into a specific tube in a single command (`put_in_tube`), a functionality not supported by the official protocol. Many clients issue a `use` command followed by a `put`, which reduces performance. Instead, `ebeanstalkd` provides this functionality directly via `ebeanstalkd:put_in_tube`.
+- The `capabilities` configuration accepts a list with the following options:
+    - `jobs_with_tube` - Configures the server to return the tube to which a job belongs. Instead of `{Tag, JobId, JobBody}`, the server will respond with `{Tag, JobId, TubeName, JobBody}`.
 
 [1]:https://github.com/beanstalkd/beanstalkd
 [2]:https://github.com/silviucpp/beanstalkd

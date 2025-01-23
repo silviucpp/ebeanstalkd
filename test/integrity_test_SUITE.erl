@@ -1,5 +1,7 @@
 -module(integrity_test_SUITE).
 
+-include("ebeanstalkd.hrl").
+
 %% note: you need to run the test on a clean beanstalkd server instance to make sure
 %% jobs are not already exist (part of the tests might fail if jobs are already in tubes)
 
@@ -23,11 +25,12 @@ groups() -> [
         test_touch,
         test_kick,
         test_stats_job,
-        % disabled because of: https://github.com/beanstalkd/beanstalkd/commit/4c275d5945299e4562389f9f2ca7c326173d6335
-        % not being released
-        %test_stats,
         test_stats_tube,
-        test_list
+        test_list,
+        % might fail because of: https://github.com/beanstalkd/beanstalkd/commit/4c275d5945299e4562389f9f2ca7c326173d6335 not being released
+        test_stats,
+        test_put_in_tube2,
+        test_capabilities
     ]}
 ].
 
@@ -181,7 +184,6 @@ test_stats(_Config) ->
     {ok, Q} = ebeanstalkd:connect([{tube, {watch, <<"test_stats">>}}]),
     {ok, List} = ebeanstalkd:stats(Q),
     ok = lists:foreach(fun({K, _V}) -> true = is_binary(K) end, List),
-    48 = length(List),
     ok = ebeanstalkd:close(Q).
 
 test_stats_tube(_Config) ->
@@ -200,6 +202,42 @@ test_list(_Config) ->
     {using, <<"default">>} = ebeanstalkd:list_tube_used(Q),
     {ok, [_H | _T]} = ebeanstalkd:list_tubes(Q),
     ok = ebeanstalkd:close(Q).
+
+test_put_in_tube2(_Config) ->
+    {ok, Q} = ebeanstalkd:connect(),
+    {ok, List} = ebeanstalkd:stats(Q),
+    case ebeanstalkd_utils:lookup(<<"cmd-put-in-tube">>, List, null) of
+        null ->
+            ct:print("### !!! feature put_in_tube2 not available", []);
+        _ ->
+            ok = use_tube(Q, <<"test_put_in_tube2">>),
+            {inserted, Jb1} = ebeanstalkd:put_in_tube2(Q, <<"test_put2">>, <<"test_put_PACKET1">>),
+            {inserted, Jb2} = ebeanstalkd:put_in_tube2(Q, <<"test_put2">>, <<"test_put_PACKET2">>, [{pri, 0}, {delay, 0}, {ttr, 60}]),
+            {deleted} = ebeanstalkd:delete(Q, Jb1),
+            {deleted} = ebeanstalkd:delete(Q, Jb2),
+            ok = ebeanstalkd:close(Q)
+    end.
+
+test_capabilities(_Config) ->
+    {ok, Q1} = ebeanstalkd:connect(),
+    {ok, List} = ebeanstalkd:stats(Q1),
+    ok = ebeanstalkd:close(Q1),
+    case ebeanstalkd_utils:lookup(<<"cmd-set-caps">>, List, null) of
+        null ->
+            ct:print("### !!! feature set_capabilities not available", []);
+        _ ->
+            TubeName = <<"test_capabilities">>,
+            {ok, Q} = ebeanstalkd:connect([{capabilities, [?CAPS_JOBS_WITH_TUBE]}]),
+            {watching, _} = ebeanstalkd:watch(Q, TubeName),
+            {watching, _} = ebeanstalkd:ignore(Q, <<"default">>),
+            {inserted, Jb1} = ebeanstalkd:put_in_tube2(Q, TubeName, <<"test_put_PACKET1">>),
+            {reserved, Jb1, TubeName, <<"test_put_PACKET1">>} = ebeanstalkd:reserve(Q),
+            {released} = ebeanstalkd:release(Q, Jb1),
+            {ok} = ebeanstalkd:set_capabilities(Q, []),
+            {reserved, Jb1, <<"test_put_PACKET1">>} = ebeanstalkd:reserve(Q),
+            {deleted} = ebeanstalkd:delete(Q, Jb1),
+            ok = ebeanstalkd:close(Q)
+    end.
 
 % internals
 

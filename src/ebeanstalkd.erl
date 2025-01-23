@@ -13,8 +13,6 @@
     close/1,
     put_in_tube/3,
     put_in_tube/4,
-    put_in_tube2/3,
-    put_in_tube2/4,
     put/2,
     put/3,
     use/2,
@@ -39,7 +37,14 @@
     stats/1,
     list_tubes/1,
     list_tube_used/1,
-    list_tubes_watched/1
+    list_tubes_watched/1,
+
+    % custom commands available only in https://github.com/silviucpp/beanstalkd/
+    % server fork.
+
+    set_capabilities/2,
+    put_in_tube2/3,
+    put_in_tube2/4
 ]).
 
 -spec start() ->
@@ -100,6 +105,12 @@ connect(Options) ->
 close(Pid) ->
     ebeanstalkd_connection:stop(Pid).
 
+-spec set_capabilities(con_ref(), [caps()]) ->
+    ok | {error, reason()}.
+
+set_capabilities(InstanceRef, Caps) ->
+    bk_exec(InstanceRef, ?BK_SET_CAPABILITIES(ebeanstalkd_utils:get_caps(Caps, 0))).
+
 -spec put_in_tube(con_ref(), tube(), binary()) ->
     {inserted, job_id()} | {error, reason()}.
 
@@ -156,13 +167,13 @@ use(InstanceRef, Tube) when is_binary(Tube) ->
     bk_exec(InstanceRef, ?BK_USE(Tube)).
 
 -spec reserve(con_ref()) ->
-    {reserved, job_id(), binary()} | {error, reason()}.
+    {reserved, job_id(), binary()} | {reserved, job_id(), tube(), binary()}  | {error, reason()}.
 
 reserve(InstanceRef) ->
     bk_exec(InstanceRef, ?BK_RESERVE(), infinity).
 
 -spec reserve(con_ref(), timeout()) ->
-    {reserved, job_id(), binary()} | {error, reason()}.
+    {reserved, job_id(), binary()} | {reserved, job_id(), tube(), binary()} | {error, reason()}.
 
 reserve(InstanceRef, Timeout) ->
     bk_exec(InstanceRef, ?BK_RESERVE(Timeout), infinity).

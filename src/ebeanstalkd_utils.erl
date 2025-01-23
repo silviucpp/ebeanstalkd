@@ -1,12 +1,15 @@
 -module(ebeanstalkd_utils).
 
+-include("ebeanstalkd.hrl").
+
 -export([
     lookup/3,
     to_bin/1,
     env/1,
     safe_call/2,
     safe_call/3,
-    join/2
+    join/2,
+    get_caps/2
 ]).
 
 lookup(Key, List, Default) ->
@@ -49,6 +52,17 @@ join([Head | Tail], Sep) ->
     join_list_sep(Tail, Sep, [Head]);
 join([], _Sep) ->
     <<>>.
+
+get_caps([H|T], Acc) ->
+    case H of
+        ?CAPS_JOBS_WITH_TUBE ->
+            get_caps(T, Acc bor 1);
+        _ ->
+            ?LOG_ERROR("unknown capability: ~p ignored...", [H]),
+            get_caps(T, Acc)
+    end;
+get_caps([], Acc) ->
+    Acc.
 
 % internals
 

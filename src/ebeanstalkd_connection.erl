@@ -39,7 +39,8 @@
     monitor,
     queue,
     queue_length,
-    decoder_state
+    decoder_state,
+    caps = 0
 }).
 
 start_link(Options) ->
@@ -61,6 +62,7 @@ init(Options) ->
     Tube = ebeanstalkd_utils:lookup(tube, Options, ?DEFAULT_TUBE),
     RecInterval = ebeanstalkd_utils:lookup(reconnect_interval, Options, ?RECONNECT_MS),
     Monitor = ebeanstalkd_utils:lookup(monitor, Options, undefined),
+    CapsList = ebeanstalkd_utils:lookup(capabilities, Options, []),
 
     {ok, connect(#state{
         host = Host,
@@ -71,7 +73,8 @@ init(Options) ->
         monitor = Monitor,
         queue = queue:new(),
         queue_length = 0,
-        decoder_state = ebeanstalkd_decoder:new()
+        decoder_state = ebeanstalkd_decoder:new(),
+        caps = ebeanstalkd_utils:get_caps(CapsList, 0)
     })}.
 
 handle_call({command, CommandPayload}, From, #state{socket = Socket, queue_length = QueueLength, queue = Queue} = State) ->
@@ -159,10 +162,18 @@ code_change(_OldVsn, State, _Extra) ->
 
 % internals
 
-connect(#state{host = Host, port = Port, timeout = Timeout, tube = Tube, monitor = NotificationPid, recon_interval = ReconnectionInterval, decoder_state = DecoderState} = State) ->
+connect(#state{host = Host, port = Port, timeout = Timeout, tube = Tube, monitor = NotificationPid, recon_interval = ReconnectionInterval, decoder_state = DecoderState0, caps = Caps} = State) ->
     case gen_tcp:connect(Host, Port, ?CONNECT_OPTIONS, Timeout) of
         {ok, Socket} ->
             ?LOG_INFO("connection completed: ~p", [Socket]),
+
+            DecoderState = case Caps of
+                0 ->
+                    DecoderState0;
+                _ ->
+                    {ok, DecoderState1} = set_capabilities(Socket, Caps, DecoderState0),
+                    DecoderState1
+            end,
 
             case update_tube(Socket, Tube, DecoderState) of
                 {ok, NewDecoderState} ->
@@ -185,6 +196,15 @@ disconnect(#state{queue = Queue, monitor = MonitorRef} = State) ->
     notification_connection_down(MonitorRef),
     erlang:send_after(0, self(), reconnect),
     State#state{socket = undefined, queue = queue:new(), queue_length = 0, decoder_state = ebeanstalkd_decoder:new()}.
+
+set_capabilities(Socket, Caps, DecoderState) ->
+    case send_sync(Socket, ?BK_SET_CAPABILITIES(Caps), DecoderState) of
+        {ok, {ok}, NewDecoderState} ->
+            {ok, NewDecoderState};
+        Result ->
+            ?LOG_ERROR("failed to set capabilities: ~p error: ~p", [Caps, Result]),
+            Result
+    end.
 
 update_tube(Socket, TubeOption, DecoderState) ->
     case TubeOption of

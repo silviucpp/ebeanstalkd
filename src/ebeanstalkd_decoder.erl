@@ -19,7 +19,8 @@
     <<"TOUCHED">> => touched,
     <<"KICKED">> => kicked,
     <<"NOT_IGNORED">> => not_ignored,
-    <<"INSERTED">> => inserted
+    <<"INSERTED">> => inserted,
+    <<"OK">> => ok
 }).
 
 -export([
@@ -58,6 +59,8 @@ decode(Buffer0, #state{response_map = Rm, buffer = ExistingBuffer} = State) ->
                     case decode_job(Bin, Rest) of
                         {ok, JobId, JobBody, NewRest} ->
                             {ok, {reserved, JobId, JobBody}, State#state{buffer = NewRest}};
+                        {ok, JobId, Tube, JobBody, NewRest} ->
+                            {ok, {reserved, JobId, Tube, JobBody}, State#state{buffer = NewRest}};
                         _ ->
                             {more, State#state{buffer = Buffer}}
                     end;
@@ -65,6 +68,8 @@ decode(Buffer0, #state{response_map = Rm, buffer = ExistingBuffer} = State) ->
                     case decode_job(Bin, Rest) of
                         {ok, JobId, JobBody, NewRest} ->
                             {ok, {found, JobId, JobBody}, State#state{buffer = NewRest}};
+                        {ok, JobId, Tube, JobBody, NewRest} ->
+                            {ok, {found, JobId, Tube, JobBody}, State#state{buffer = NewRest}};
                         _ ->
                             {more, State#state{buffer = Buffer}}
                     end;
@@ -98,15 +103,26 @@ decode_integer(Command, Bin, NewState) ->
     {ok, {Command, binary_to_integer(Bin)}, NewState}.
 
 decode_job(CommandPayload, Rest) ->
-    case binary:split(CommandPayload, ?BIN_WHITE_SPACE) of
-        [Id0, JobBytes0] ->
-            Id = binary_to_integer(Id0),
-            JobBytes = binary_to_integer(JobBytes0),
-            case Rest of
-                <<Body:JobBytes/binary, ?STR_END_LINE, NewRest/binary>> ->
+    case binary:split(CommandPayload, ?BIN_WHITE_SPACE, [global]) of
+        [IdBin, JobBytesBin] ->
+            decode_job_metadata(IdBin, JobBytesBin, null, Rest);
+        [IdBin, JobBytesBin, Tube] ->
+            decode_job_metadata(IdBin, JobBytesBin, Tube, Rest);
+        _ ->
+            more
+    end.
+
+decode_job_metadata(IdBin, JobBytesBin, Tube, Rest) ->
+    JobBytes = binary_to_integer(JobBytesBin),
+    case Rest of
+        <<Body:JobBytes/binary, ?STR_END_LINE, NewRest/binary>> ->
+            Id = binary_to_integer(IdBin),
+
+            case Tube of
+                null ->
                     {ok, Id, Body, NewRest};
                 _ ->
-                    more
+                    {ok, Id, Tube, Body, NewRest}
             end;
         _ ->
             more
