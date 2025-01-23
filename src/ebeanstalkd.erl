@@ -44,7 +44,8 @@
 
     set_capabilities/2,
     put_in_tube2/3,
-    put_in_tube2/4
+    put_in_tube2/4,
+    kick_job_delay/3
 ]).
 
 -spec start() ->
@@ -173,7 +174,7 @@ reserve(InstanceRef) ->
     bk_exec(InstanceRef, ?BK_RESERVE(), infinity).
 
 -spec reserve(con_ref(), timeout()) ->
-    {reserved, job_id(), binary()} | {reserved, job_id(), tube(), binary()} | {error, reason()}.
+    {reserved, job_id(), binary()} | {reserved, job_id(), tube(), binary()} | {timed_out} | {error, reason()}.
 
 reserve(InstanceRef, Timeout) ->
     bk_exec(InstanceRef, ?BK_RESERVE(Timeout), infinity).
@@ -263,6 +264,12 @@ kick(InstanceRef, Bound) ->
 
 kick_job(InstanceRef, ID) ->
     bk_exec(InstanceRef, ?BK_KICK_JOB(ID)).
+
+-spec kick_job_delay(con_ref(), job_id(), non_neg_integer()) ->
+    {kicked} | {error, reason()}.
+
+kick_job_delay(InstanceRef, ID, Delay) ->
+    bk_exec(InstanceRef, ?BK_KICK_JOB(ID, Delay)).
 
 -spec stats_job(con_ref(), job_id()) ->
     {ok, list()} | {error, reason()}.

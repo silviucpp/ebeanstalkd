@@ -30,7 +30,8 @@ groups() -> [
         % might fail because of: https://github.com/beanstalkd/beanstalkd/commit/4c275d5945299e4562389f9f2ca7c326173d6335 not being released
         test_stats,
         test_put_in_tube2,
-        test_capabilities
+        test_capabilities,
+        test_kick_delayed
     ]}
 ].
 
@@ -236,6 +237,32 @@ test_capabilities(_Config) ->
             {ok} = ebeanstalkd:set_capabilities(Q, []),
             {reserved, Jb1, <<"test_put_PACKET1">>} = ebeanstalkd:reserve(Q),
             {deleted} = ebeanstalkd:delete(Q, Jb1),
+            ok = ebeanstalkd:close(Q)
+    end.
+
+test_kick_delayed(_Config) ->
+    {ok, Q} = ebeanstalkd:connect(),
+    {ok, List} = ebeanstalkd:stats(Q),
+    case ebeanstalkd_utils:lookup(<<"cmd-put-in-tube">>, List, null) of
+        null ->
+            ct:print("### !!! feature test_kick_delayed not available", []);
+        _ ->
+            Tube = <<"test_kick_delayed">>,
+            ok = use_tube(Q, Tube),
+            {inserted, Jb1} = ebeanstalkd:put_in_tube2(Q, Tube, <<"1">>),
+            {inserted, Jb2} = ebeanstalkd:put_in_tube2(Q, Tube, <<"2">>, [{pri, 0}, {delay, 0}, {ttr, 60}]),
+            {reserved, Jb1, <<"1">>} = ebeanstalkd:reserve(Q),
+            {reserved, Jb2, <<"2">>} = ebeanstalkd:reserve(Q),
+            {buried} = ebeanstalkd:bury(Q, Jb1),
+            {buried} = ebeanstalkd:bury(Q, Jb2),
+            {kicked} = ebeanstalkd:kick_job(Q, Jb1),
+            {kicked} = ebeanstalkd:kick_job_delay(Q, Jb2, 3),
+            {reserved, Jb1, <<"1">>} = ebeanstalkd:reserve(Q, 0),
+            {timed_out} = ebeanstalkd:reserve(Q, 0),
+            timer:sleep(4000),
+            {reserved, Jb2, <<"2">>} = ebeanstalkd:reserve(Q, 0),
+            {deleted} = ebeanstalkd:delete(Q, Jb1),
+            {deleted} = ebeanstalkd:delete(Q, Jb2),
             ok = ebeanstalkd:close(Q)
     end.
 

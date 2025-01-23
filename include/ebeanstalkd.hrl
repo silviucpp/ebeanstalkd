@@ -41,6 +41,7 @@
 -define(BK_PEEK_BURIED(), <<"peek-buried">>).
 -define(BK_KICK(Bound), [<<"kick">>, Bound]).
 -define(BK_KICK_JOB(ID), [<<"kick-job">>, ID]).
+-define(BK_KICK_JOB(ID, Delay), [<<"kick-job">>, ID, Delay]).
 -define(BK_STATS_JOB(ID), [<<"stats-job">>, ID]).
 -define(BK_STATS_TUBE(Tube), [<<"stats-tube">>, Tube]).
 -define(BK_STATS(), <<"stats">>).

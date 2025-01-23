@@ -101,7 +101,8 @@ You can run the benchmark by running `make bench`
 
 The following features are only available when using [my server fork][2]:
 
-- `ebeanstalkd:put_in_tube2` allows you to place a job into a specific tube in a single command (`put_in_tube`), a functionality not supported by the official protocol. Many clients issue a `use` command followed by a `put`, which reduces performance. Instead, `ebeanstalkd` provides this functionality directly via `ebeanstalkd:put_in_tube`.
+- `ebeanstalkd:put_in_tube2` - place a job into a specific tube in a single command (`put_in_tube`), a functionality not supported by the official protocol. Many clients issue a `use` command followed by a `put`, which reduces performance. Instead, `ebeanstalkd` provides this functionality directly via `ebeanstalkd:put_in_tube`.
+- `ebeanstalkd:kick_job_delay` - for a buried job only: instead move the job into ready queue (still possible if delay = 0), offers the possibility to move it into the delay queue and to be ready after a certain amount of time. 
 - The `capabilities` configuration accepts a list with the following options:
     - `jobs_with_tube` - Configures the server to return the tube to which a job belongs. Instead of `{Tag, JobId, JobBody}`, the server will respond with `{Tag, JobId, TubeName, JobBody}`.
 
