@@ -2,7 +2,7 @@
     {description, "Erlang Beanstalkd Client"},
     {licenses, ["MIT"]},
     {links,[{"Github","https://github.com/silviucpp/ebeanstalkd"}]},
-    {vsn, "3.2.0"},
+    {vsn, "3.2.1"},
     {registered, []},
     {applications, [
         kernel,
